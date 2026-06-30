@@ -1,0 +1,144 @@
+import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
+import { FlatList, Pressable, RefreshControl, Text, View, StyleSheet } from 'react-native';
+
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui/QueryStates';
+import { SearchBar } from '@/components/ui/SearchBar';
+import { StatusPill } from '@/components/ui/StatusPill';
+import { colors, radius, space } from '@/constants/theme';
+import { vehicleStatusPill } from '@/lib/format';
+import { getVehicles, type Vehicle } from '@/lib/api';
+import { useApiQuery } from '@/lib/useApiQuery';
+
+// label -> predicate over the stored status value
+const FILTERS: { label: string; match: (s: string) => boolean }[] = [
+  { label: 'All', match: () => true },
+  { label: 'Assigned', match: (s) => s === 'assigned' },
+  { label: 'Available', match: (s) => ['ready_to_deploy', 'available', 'mechanically_ok', 'returned'].includes(s) },
+  { label: 'Maintenance', match: (s) => s === 'under_maintenance' || s === 'maintenance' },
+];
+
+export default function VehiclesScreen() {
+  const router = useRouter();
+  const fetcher = useCallback((token: string) => getVehicles(token), []);
+  const { data, loading, refreshing, error, refetch } = useApiQuery<Vehicle[]>(fetcher, [], {
+    cacheKey: 'vehicles',
+  });
+
+  const [search, setSearch] = useState('');
+  const [filterIdx, setFilterIdx] = useState(0);
+
+  const rows = useMemo(() => {
+    let list = data ?? [];
+    list = list.filter((v) => FILTERS[filterIdx].match(v.status));
+    const q = search.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (v) =>
+          v.ev_number?.toLowerCase().includes(q) ||
+          v.model_name?.toLowerCase().includes(q) ||
+          v.assigned_rider?.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [data, filterIdx, search]);
+
+  if (loading) return <LoadingState label="Loading vehicles…" />;
+  if (error) return <ErrorState message={error} onRetry={refetch} />;
+
+  return (
+    <View style={styles.screen}>
+      <View style={styles.controls}>
+        <SearchBar value={search} onChangeText={setSearch} placeholder="Search EV no., model, rider" />
+        <View style={styles.chips}>
+          {FILTERS.map((f, i) => {
+            const active = i === filterIdx;
+            return (
+              <Pressable key={f.label} onPress={() => setFilterIdx(i)} style={[styles.chip, active && styles.chipActive]}>
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>{f.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      <FlatList
+        style={styles.list}
+        contentContainerStyle={styles.content}
+        data={rows}
+        keyExtractor={(v) => v.id}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refetch} tintColor={colors.accent} />}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        keyboardDismissMode="on-drag"
+        ListEmptyComponent={<EmptyState icon="car" message="No vehicles match." />}
+        renderItem={({ item }) => {
+          const pill = vehicleStatusPill(item.status);
+          const model = [item.oem, item.model_name].filter(Boolean).join(' ');
+          return (
+            <Pressable
+              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+              onPress={() => router.push({ pathname: '/vehicle/[id]', params: { id: item.id } })}>
+              <View style={styles.icon}>
+                <FontAwesome name="motorcycle" size={18} color={colors.accent} />
+              </View>
+              <View style={styles.main}>
+                <Text style={styles.reg}>{item.ev_number}</Text>
+                <Text style={styles.meta}>
+                  {model || 'Unknown model'}
+                  {item.hub_name ? ` · ${item.hub_name}` : ''}
+                </Text>
+                {item.assigned_rider ? <Text style={styles.rider}>Rider: {item.assigned_rider}</Text> : null}
+              </View>
+              <StatusPill label={pill.label} tone={pill.tone} />
+              <FontAwesome name="angle-right" size={18} color={colors.textFaint} />
+            </Pressable>
+          );
+        }}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.bg },
+  list: { flex: 1 },
+  controls: { padding: space(4), paddingBottom: space(2), gap: space(3) },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space(2) },
+  chip: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    borderRadius: radius.full,
+    paddingHorizontal: space(3.5),
+    paddingVertical: space(2),
+  },
+  chipActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  chipText: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
+  chipTextActive: { color: colors.accent },
+  content: { padding: space(4), paddingTop: space(2), flexGrow: 1 },
+  separator: { height: space(3) },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space(3),
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: space(3.5),
+  },
+  rowPressed: { opacity: 0.6 },
+  icon: {
+    width: 42,
+    height: 42,
+    borderRadius: radius.md,
+    backgroundColor: colors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  main: { flex: 1, gap: 2 },
+  reg: { color: colors.text, fontSize: 15, fontWeight: '600' },
+  meta: { color: colors.textFaint, fontSize: 13 },
+  rider: { color: colors.textMuted, fontSize: 12 },
+});
