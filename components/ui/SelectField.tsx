@@ -1,0 +1,152 @@
+import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { useMemo, useState } from 'react';
+import { FlatList, Modal, Pressable, Text, View, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { SearchBar } from './SearchBar';
+import { colors, radius, space } from '@/constants/theme';
+
+export type SelectOption = { label: string; sublabel?: string; value: string };
+
+type Props = {
+  label: string;
+  required?: boolean;
+  placeholder?: string;
+  value: string | null;
+  options: SelectOption[];
+  onSelect: (value: string) => void;
+  searchable?: boolean;
+  emptyText?: string;
+};
+
+export function SelectField({
+  label,
+  required,
+  placeholder = 'Select',
+  value,
+  options,
+  onSelect,
+  searchable = true,
+  emptyText = 'Nothing available',
+}: Props) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+
+  const selected = options.find((o) => o.value === value) ?? null;
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter(
+      (o) => o.label.toLowerCase().includes(q) || (o.sublabel ?? '').toLowerCase().includes(q)
+    );
+  }, [options, query]);
+
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>
+        {label}
+        {required ? <Text style={styles.req}> *</Text> : null}
+      </Text>
+
+      <Pressable style={styles.control} onPress={() => setOpen(true)}>
+        <Text style={[styles.value, !selected && styles.placeholder]} numberOfLines={1}>
+          {selected ? selected.label + (selected.sublabel ? ` · ${selected.sublabel}` : '') : placeholder}
+        </Text>
+        <FontAwesome name="chevron-down" size={13} color={colors.textFaint} />
+      </Pressable>
+
+      <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
+        <SafeAreaView style={styles.modal} edges={['top', 'bottom']}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{label}</Text>
+            <Pressable onPress={() => setOpen(false)} hitSlop={10}>
+              <FontAwesome name="times" size={20} color={colors.textMuted} />
+            </Pressable>
+          </View>
+          {searchable ? (
+            <View style={styles.searchWrap}>
+              <SearchBar value={query} onChangeText={setQuery} placeholder={`Search ${label.toLowerCase()}`} />
+            </View>
+          ) : null}
+          <FlatList
+            data={filtered}
+            keyExtractor={(o) => o.value}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.list}
+            ItemSeparatorComponent={() => <View style={styles.sep} />}
+            ListEmptyComponent={<Text style={styles.empty}>{emptyText}</Text>}
+            renderItem={({ item }) => {
+              const active = item.value === value;
+              return (
+                <Pressable
+                  style={({ pressed }) => [styles.option, pressed && styles.optionPressed]}
+                  onPress={() => {
+                    onSelect(item.value);
+                    setQuery('');
+                    setOpen(false);
+                  }}>
+                  <View style={styles.optionMain}>
+                    <Text style={styles.optionLabel}>{item.label}</Text>
+                    {item.sublabel ? <Text style={styles.optionSub}>{item.sublabel}</Text> : null}
+                  </View>
+                  {active ? <FontAwesome name="check" size={15} color={colors.accent} /> : null}
+                </Pressable>
+              );
+            }}
+          />
+        </SafeAreaView>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  field: { gap: space(1.5) },
+  label: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
+  req: { color: colors.danger },
+  control: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space(2),
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: space(4),
+    paddingVertical: space(3.5),
+  },
+  value: { flex: 1, color: colors.text, fontSize: 15 },
+  placeholder: { color: colors.textFaint },
+  modal: { flex: 1, backgroundColor: colors.bg },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: space(4),
+    paddingVertical: space(3),
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  modalTitle: { color: colors.text, fontSize: 17, fontWeight: '700' },
+  searchWrap: { padding: space(4), paddingBottom: space(2) },
+  list: { paddingHorizontal: space(4), paddingBottom: space(6), flexGrow: 1 },
+  sep: { height: space(2) },
+  option: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space(3),
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: space(3.5),
+  },
+  optionPressed: { opacity: 0.6 },
+  optionMain: { flex: 1, gap: 2 },
+  optionLabel: { color: colors.text, fontSize: 15, fontWeight: '600' },
+  optionSub: { color: colors.textFaint, fontSize: 13 },
+  empty: { color: colors.textMuted, fontSize: 14, textAlign: 'center', padding: space(8) },
+});

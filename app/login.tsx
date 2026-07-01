@@ -2,6 +2,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Pressable,
   ScrollView,
@@ -48,9 +49,7 @@ export default function LoginScreen() {
           showsVerticalScrollIndicator={false}>
           {/* Brand */}
           <View style={styles.brand}>
-            <View style={styles.logo}>
-              <FontAwesome name="bolt" size={26} color="#fff" />
-            </View>
+            <Image source={require('@/assets/images/logo-icon.png')} style={styles.logo} resizeMode="contain" />
             <Text style={styles.brandName}>MoveGrid</Text>
             <Text style={styles.brandTag}>Operations</Text>
           </View>
@@ -146,12 +145,8 @@ const styles = StyleSheet.create({
     marginBottom: space(4),
   },
   logo: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.lg,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 72,
+    height: 72,
   },
   brandName: {
     color: colors.text,

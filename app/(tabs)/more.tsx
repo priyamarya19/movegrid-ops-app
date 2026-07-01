@@ -4,33 +4,33 @@ import { Alert, Pressable, ScrollView, Text, View, StyleSheet } from 'react-nati
 
 import { colors, radius, space } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
+import { roleLabel } from '@/lib/roles';
 
 type Item = {
   icon: React.ComponentProps<typeof FontAwesome>['name'];
   label: string;
   href?: Href;
+  roles: string[];
 };
 
-// Mirrors the dashboard's remaining nav sections (role-gated on the backend).
+const ALL_OPS = ['admin', 'ops_manager', 'hub_incharge'];
+
+// Role visibility mirrors the dashboard: ops don't see Investors / Audit logs;
+// Leads is admin + ops_manager only (hub_incharge is 403 on the API).
 const SECTIONS: Item[] = [
-  { icon: 'building', label: 'Hubs', href: '/hubs' },
-  { icon: 'user-plus', label: 'Leads' },
-  { icon: 'file-text-o', label: 'Forms' },
-  { icon: 'line-chart', label: 'Investors' },
-  { icon: 'list-alt', label: 'Audit logs' },
-  { icon: 'cog', label: 'Settings' },
+  { icon: 'building', label: 'Hubs', href: '/hubs', roles: ALL_OPS },
+  { icon: 'user-plus', label: 'Leads', href: '/leads', roles: ['admin', 'ops_manager'] },
+  { icon: 'file-text-o', label: 'Forms', href: '/forms', roles: ALL_OPS },
+  { icon: 'line-chart', label: 'Investors', roles: ['admin'] },
+  { icon: 'list-alt', label: 'Audit logs', roles: ['admin'] },
+  { icon: 'cog', label: 'Settings', href: '/settings', roles: [...ALL_OPS, 'investor'] },
 ];
-
-const ROLE_LABEL: Record<string, string> = {
-  admin: 'Admin',
-  ops_manager: 'Ops Manager',
-  hub_incharge: 'Hub Incharge',
-  investor: 'Investor',
-};
 
 export default function MoreScreen() {
   const { user, signOut } = useAuth();
   const router = useRouter();
+
+  const sections = SECTIONS.filter((s) => s.roles.includes(user?.role ?? ''));
 
   const confirmSignOut = () => {
     Alert.alert('Sign out', 'Are you sure you want to sign out?', [
@@ -41,21 +41,24 @@ export default function MoreScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      {/* User card */}
+      {/* User card → Settings */}
       {user ? (
-        <View style={styles.userCard}>
+        <Pressable
+          style={({ pressed }) => [styles.userCard, pressed && styles.rowPressed]}
+          onPress={() => router.push('/settings')}>
           <View style={styles.userAvatar}>
             <Text style={styles.userAvatarText}>{user.name?.charAt(0)?.toUpperCase() ?? '?'}</Text>
           </View>
           <View style={styles.userMain}>
             <Text style={styles.userName}>{user.name}</Text>
-            <Text style={styles.userRole}>{ROLE_LABEL[user.role] ?? user.role}</Text>
+            <Text style={styles.userRole}>{roleLabel(user.role)}</Text>
           </View>
-        </View>
+          <FontAwesome name="angle-right" size={18} color={colors.textFaint} />
+        </Pressable>
       ) : null}
 
       <View style={styles.group}>
-        {SECTIONS.map((item, i) => (
+        {sections.map((item, i) => (
           <Pressable
             key={item.label}
             style={({ pressed }) => [styles.row, i > 0 && styles.rowBorder, pressed && styles.rowPressed]}
@@ -80,14 +83,8 @@ export default function MoreScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-  content: {
-    padding: space(4),
-    gap: space(5),
-  },
+  screen: { flex: 1, backgroundColor: colors.bg },
+  content: { padding: space(4), gap: space(5) },
   userCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -106,23 +103,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  userAvatarText: {
-    color: colors.accent,
-    fontWeight: '700',
-    fontSize: 18,
-  },
-  userMain: {
-    gap: 2,
-  },
-  userName: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  userRole: {
-    color: colors.textMuted,
-    fontSize: 13,
-  },
+  userAvatarText: { color: colors.accent, fontWeight: '700', fontSize: 18 },
+  userMain: { flex: 1, gap: 2 },
+  userName: { color: colors.text, fontSize: 16, fontWeight: '700' },
+  userRole: { color: colors.textMuted, fontSize: 13 },
   group: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
@@ -137,13 +121,8 @@ const styles = StyleSheet.create({
     paddingVertical: space(3.5),
     paddingHorizontal: space(4),
   },
-  rowBorder: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  rowPressed: {
-    opacity: 0.6,
-  },
+  rowBorder: { borderTopWidth: 1, borderTopColor: colors.border },
+  rowPressed: { opacity: 0.6 },
   iconWrap: {
     width: 32,
     height: 32,
@@ -152,12 +131,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  label: {
-    flex: 1,
-    color: colors.text,
-    fontSize: 15,
-    fontWeight: '500',
-  },
+  label: { flex: 1, color: colors.text, fontSize: 15, fontWeight: '500' },
   signOut: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -169,14 +143,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  signOutText: {
-    color: colors.danger,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  version: {
-    color: colors.textFaint,
-    fontSize: 12,
-    textAlign: 'center',
-  },
+  signOutText: { color: colors.danger, fontSize: 15, fontWeight: '600' },
+  version: { color: colors.textFaint, fontSize: 12, textAlign: 'center' },
 });

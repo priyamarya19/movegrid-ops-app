@@ -1,22 +1,17 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Text, StyleSheet } from 'react-native';
 
 import { Button } from '@/components/ui/Button';
-import { FieldCard, Section } from '@/components/ui/Detail';
 import { ChipSelect, DateField, TextField } from '@/components/ui/Form';
 import { ErrorBanner, FormScreen } from '@/components/ui/FormScreen';
 import { ImageField } from '@/components/ui/ImageField';
+import { SelectField, type SelectOption } from '@/components/ui/SelectField';
 import { colors, space } from '@/constants/theme';
-import {
-  ApiError,
-  createAllotment,
-  lookupRider,
-  lookupVehicle,
-  type RiderLookup,
-  type VehicleLookup,
-} from '@/lib/api';
+import { ApiError, createAllotment, getVehicles, lookupRider, type RiderLookup, type Vehicle } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { vehicleStatusPill } from '@/lib/format';
+import { useApiQuery } from '@/lib/useApiQuery';
 
 const RIDER_MODES = [
   { label: 'B2B fleet rental', value: 'B2B fleet rental' },
@@ -25,7 +20,8 @@ const RIDER_MODES = [
 ];
 
 const ALLOTMENT_PHOTOS = ['Front', 'Left side', 'Right side', 'Back', 'Rider on scooter'];
-
+// Vehicle statuses that can actually be handed out (not assigned / maintenance / retired).
+const DEPLOYABLE = ['ready_to_deploy', 'mechanically_ok', 'returned', 'available'];
 const today = () => new Date().toISOString().split('T')[0];
 
 export default function NewAllotmentScreen() {
@@ -38,11 +34,23 @@ export default function NewAllotmentScreen() {
   const [riderHint, setRiderHint] = useState<string>();
   const [riderLooking, setRiderLooking] = useState(false);
 
-  const [ev, setEv] = useState('');
-  const [vehicle, setVehicle] = useState<VehicleLookup | null>(null);
-  const [vehicleHint, setVehicleHint] = useState<string>();
-  const [vehicleLooking, setVehicleLooking] = useState(false);
-  const evTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Available vehicles for the dropdown (anything not currently assigned).
+  const fetchVehicles = useCallback((t: string) => getVehicles(t), []);
+  const { data: vehicles } = useApiQuery<Vehicle[]>(fetchVehicles, [], { cacheKey: 'vehicles' });
+  const available = useMemo(() => (vehicles ?? []).filter((v) => DEPLOYABLE.includes(v.status)), [vehicles]);
+  const vehicleOptions: SelectOption[] = useMemo(
+    () =>
+      available.map((v) => ({
+        value: v.id,
+        label: v.ev_number,
+        sublabel: [[v.oem, v.model_name].filter(Boolean).join(' '), v.hub_name, vehicleStatusPill(v.status).label]
+          .filter(Boolean)
+          .join(' · '),
+      })),
+    [available]
+  );
+  const [vehicleId, setVehicleId] = useState<string | null>(null);
+  const vehicle = useMemo(() => available.find((v) => v.id === vehicleId) ?? null, [available, vehicleId]);
 
   const [riderMode, setRiderMode] = useState<string | null>(null);
   const [onboardingFee, setOnboardingFee] = useState('');
@@ -75,45 +83,12 @@ export default function NewAllotmentScreen() {
     }
   };
 
-  // Prefill + auto-lookup rider when arriving from "Allot vehicle".
   useEffect(() => {
     if (params.mobile) lookupRiderNow(params.mobile);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Debounced EV auto-lookup.
-  useEffect(() => {
-    if (!ev.trim()) {
-      setVehicle(null);
-      setVehicleHint(undefined);
-      return;
-    }
-    if (evTimer.current) clearTimeout(evTimer.current);
-    evTimer.current = setTimeout(async () => {
-      if (!token) return;
-      setVehicleLooking(true);
-      setVehicle(null);
-      setVehicleHint('Looking up…');
-      try {
-        const v = await lookupVehicle(token, ev.trim());
-        setVehicle(v);
-        const model = [v.oem, v.model_name].filter(Boolean).join(' ');
-        setVehicleHint(
-          v.status === 'assigned' ? 'Already assigned — return it first' : `${model || v.ev_number} · ${v.status}`
-        );
-      } catch (e) {
-        setVehicleHint(e instanceof ApiError && e.status === 404 ? 'No vehicle with this number' : 'Lookup failed');
-      } finally {
-        setVehicleLooking(false);
-      }
-    }, 600);
-    return () => {
-      if (evTimer.current) clearTimeout(evTimer.current);
-    };
-  }, [ev, token]);
-
-  const vehicleAvailable = vehicle && vehicle.status !== 'assigned';
-  const canSubmit = !!rider && !!vehicleAvailable && !!riderMode && amount.trim().length > 0 && !submitting;
+  const canSubmit = !!rider && !!vehicle && !!riderMode && amount.trim().length > 0 && !submitting;
 
   const onSubmit = async () => {
     if (!token || !rider || !vehicle) return;
@@ -123,7 +98,6 @@ export default function NewAllotmentScreen() {
       await createAllotment(token, {
         rider_id: rider.id,
         vehicle_id: vehicle.id,
-        hub_id: vehicle.hub_id,
         rental_mode: riderMode,
         onboarding_fee: onboardingFee.trim() ? Number(onboardingFee) : null,
         security_deposit: deposit.trim() ? Number(deposit) : null,
@@ -155,28 +129,15 @@ export default function NewAllotmentScreen() {
       <Stack.Screen options={{ title: 'New allotment' }} />
       <FormScreen>
         <Text style={styles.section}>Vehicle</Text>
-        <TextField
-          label="EV / scooter number"
+        <SelectField
+          label="Available vehicle"
           required
-          value={ev}
-          onChangeText={setEv}
-          placeholder="e.g. MG-001"
-          autoCapitalize="characters"
-          editable={!submitting}
-          hint={vehicleHint}
-          tone={vehicleAvailable ? 'success' : vehicleHint && !vehicleLooking ? 'error' : 'default'}
+          placeholder={available.length ? 'Select a vehicle' : 'No available vehicles'}
+          value={vehicleId}
+          options={vehicleOptions}
+          onSelect={setVehicleId}
+          emptyText="No available vehicles to allot."
         />
-        {vehicle ? (
-          <FieldCard
-            rows={[
-              { label: 'Chassis', value: vehicle.chassis_number ?? '—' },
-              { label: 'Motor', value: vehicle.motor_number ?? '—' },
-              { label: 'Controller', value: vehicle.controller_number ?? '—' },
-              { label: 'Battery', value: vehicle.battery_number ?? '—' },
-              { label: 'Hub', value: vehicle.hub_name ?? '—' },
-            ]}
-          />
-        ) : null}
 
         <Text style={styles.section}>Rider</Text>
         <TextField

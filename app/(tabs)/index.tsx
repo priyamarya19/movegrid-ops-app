@@ -1,7 +1,7 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Link, useRouter } from 'expo-router';
 import { useCallback } from 'react';
-import { Pressable, RefreshControl, ScrollView, Text, View, StyleSheet } from 'react-native';
+import { Image, Pressable, RefreshControl, ScrollView, Text, View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Card } from '@/components/ui/Card';
@@ -67,9 +67,7 @@ export default function HomeScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.brandRow}>
-            <View style={styles.logo}>
-              <FontAwesome name="bolt" size={14} color="#fff" />
-            </View>
+            <Image source={require('@/assets/images/logo-icon.png')} style={styles.logo} resizeMode="contain" />
             <Text style={styles.brand}>MoveGrid</Text>
           </View>
           <Text style={styles.greeting}>
@@ -88,16 +86,22 @@ export default function HomeScreen() {
             {/* Stats */}
             <View style={styles.statsGrid}>
               <View style={styles.statsRow}>
-                <StatCard icon="users" value={data.activeRiders} label="Active riders" />
-                <StatCard icon="car" value={data.vehicles} label="Vehicles" />
+                <StatCard icon="users" value={data.activeRiders} label="Active riders" onPress={() => router.push('/riders')} />
+                <StatCard icon="car" value={data.vehicles} label="Vehicles" onPress={() => router.push('/vehicles')} />
               </View>
               <View style={styles.statsRow}>
-                <StatCard icon="check-circle" value={`${data.summary.pct}%`} label="Rent collected MTD" />
+                <StatCard
+                  icon="check-circle"
+                  value={`${data.summary.pct}%`}
+                  label="Rent collected MTD"
+                  onPress={() => router.push('/riders')}
+                />
                 <StatCard
                   icon="exclamation-triangle"
                   value={formatINR(data.summary.overdue)}
                   label={`Overdue · ${data.summary.overdueWeeks} wk`}
                   tone="danger"
+                  onPress={() => router.push({ pathname: '/riders', params: { filter: 'overdue' } })}
                 />
               </View>
             </View>
@@ -180,12 +184,8 @@ const styles = StyleSheet.create({
     marginBottom: space(2),
   },
   logo: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.md,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 30,
+    height: 30,
   },
   brand: {
     color: colors.text,

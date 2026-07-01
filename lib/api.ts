@@ -476,3 +476,52 @@ export function createVehicle(token: string, body: NewVehicle) {
     token,
   });
 }
+
+// ---- Profile & account ----
+
+export type Profile = {
+  id: string;
+  name: string;
+  email: string;
+  mobile: string | null;
+  photo_url: string | null;
+  role: string;
+};
+
+export function getProfile(token: string) {
+  return apiFetch<Profile>('/api/auth/profile', { token });
+}
+
+export function updateProfile(
+  token: string,
+  body: { name?: string; mobile?: string | null; photo_url?: string | null }
+) {
+  return apiFetch<{ success: boolean }>('/api/auth/profile', { method: 'PATCH', body, token });
+}
+
+export function changePassword(token: string, currentPassword: string, newPassword: string) {
+  return apiFetch<{ success: boolean }>('/api/auth/change-password', {
+    method: 'POST',
+    body: { currentPassword, newPassword },
+    token,
+  });
+}
+
+// ---- Leads ----
+
+export type Lead = {
+  id: string;
+  type: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  city: string | null;
+  fleet_size: number | string | null;
+  amount: number | string | null;
+  status: string;
+  created_at: string;
+};
+
+export function getLeads(token: string) {
+  return apiFetch<Lead[]>('/api/leads', { token });
+}

@@ -1,6 +1,6 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, Text, View, StyleSheet } from 'react-native';
 
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/QueryStates';
@@ -30,8 +30,14 @@ export default function RidersScreen() {
     cacheKey: 'riders',
   });
 
+  const params = useLocalSearchParams<{ filter?: string }>();
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'all' | 'overdue'>('all');
+  const [filter, setFilter] = useState<'all' | 'overdue'>(params.filter === 'overdue' ? 'overdue' : 'all');
+
+  // Honour ?filter=overdue when navigated in from the Home "Overdue" card.
+  useEffect(() => {
+    if (params.filter === 'overdue') setFilter('overdue');
+  }, [params.filter]);
 
   const overdueById = useMemo(
     () => new Map((data?.overdue ?? []).map((o) => [o.rider_id, o])),

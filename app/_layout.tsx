@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
+import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import { ToastProvider } from '@/components/ui/Toast';
 import { colors } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
@@ -69,6 +70,12 @@ function RootNavigator() {
   const segments = useSegments();
   const router = useRouter();
 
+  // Hide the native splash as soon as React is mounted so the branded
+  // Lottie loading screen is visible while the session is resolving.
+  useEffect(() => {
+    SplashScreen.hideAsync();
+  }, []);
+
   // Redirect based on auth state once the persisted session has loaded.
   useEffect(() => {
     if (isLoading) return;
@@ -79,8 +86,12 @@ function RootNavigator() {
     } else if (token && inAuthGroup) {
       router.replace('/');
     }
-    SplashScreen.hideAsync();
   }, [token, isLoading, segments, router]);
+
+  // Show the branded loading screen while the persisted session loads.
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
 
   return (
     <Stack screenOptions={{ contentStyle: { backgroundColor: colors.bg } }}>
@@ -94,6 +105,9 @@ function RootNavigator() {
       <Stack.Screen name="allotment/return" options={{ headerShown: true }} />
       <Stack.Screen name="rent-collect" options={{ headerShown: true }} />
       <Stack.Screen name="hubs" options={{ headerShown: true }} />
+      <Stack.Screen name="leads" options={{ headerShown: true }} />
+      <Stack.Screen name="forms" options={{ headerShown: true }} />
+      <Stack.Screen name="settings" options={{ headerShown: true }} />
       <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
     </Stack>
   );
