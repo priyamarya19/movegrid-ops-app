@@ -21,7 +21,7 @@ const RIDER_MODES = [
 
 const ALLOTMENT_PHOTOS = ['Front', 'Left side', 'Right side', 'Back', 'Rider on scooter'];
 // Vehicle statuses that can actually be handed out (not assigned / maintenance / retired).
-const DEPLOYABLE = ['ready_to_deploy', 'mechanically_ok', 'returned', 'available'];
+const DEPLOYABLE = ['ready_to_deploy'];
 const today = () => new Date().toISOString().split('T')[0];
 
 export default function NewAllotmentScreen() {

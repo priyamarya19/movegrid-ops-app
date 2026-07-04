@@ -15,7 +15,7 @@ import { useApiQuery } from '@/lib/useApiQuery';
 const FILTERS: { label: string; match: (s: string) => boolean }[] = [
   { label: 'All', match: () => true },
   { label: 'Assigned', match: (s) => s === 'assigned' },
-  { label: 'Available', match: (s) => ['ready_to_deploy', 'available', 'mechanically_ok', 'returned'].includes(s) },
+  { label: 'Available', match: (s) => ['ready_to_deploy'].includes(s) },
   { label: 'Maintenance', match: (s) => s === 'under_maintenance' || s === 'maintenance' },
 ];
 
