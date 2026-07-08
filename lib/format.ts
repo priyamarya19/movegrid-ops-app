@@ -31,6 +31,17 @@ export function rentStatusPill(status: string): { label: string; tone: PillTone 
   }
 }
 
+export function penaltyStatusPill(status: string): { label: string; tone: PillTone } {
+  switch (status) {
+    case 'paid':
+      return { label: 'Paid', tone: 'accent' };
+    case 'waived':
+      return { label: 'Waived', tone: 'neutral' };
+    default:
+      return { label: 'Pending', tone: 'danger' };
+  }
+}
+
 export function formatINR(value: number | string | null | undefined): string {
   if (value === null || value === undefined || value === '') return '—';
   const n = Number(value);

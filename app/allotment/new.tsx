@@ -11,6 +11,7 @@ import { colors, space } from '@/constants/theme';
 import { ApiError, createAllotment, getVehicles, lookupRider, type RiderLookup, type Vehicle } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { vehicleStatusPill } from '@/lib/format';
+import { digitsOnly, isValidMobile } from '@/lib/validation';
 import { useApiQuery } from '@/lib/useApiQuery';
 
 const RIDER_MODES = [
@@ -66,6 +67,11 @@ export default function NewAllotmentScreen() {
 
   const lookupRiderNow = async (value: string) => {
     if (!token || !value.trim()) return;
+    if (!isValidMobile(value)) {
+      setRider(null);
+      setRiderHint('Enter exactly 10 digits');
+      return;
+    }
     setRiderLooking(true);
     setRider(null);
     setRiderHint('Looking up…');
@@ -144,10 +150,11 @@ export default function NewAllotmentScreen() {
           label="Rider mobile"
           required
           value={mobile}
-          onChangeText={setMobile}
+          onChangeText={(v) => setMobile(digitsOnly(v).slice(0, 10))}
           onEndEditing={() => lookupRiderNow(mobile)}
           placeholder="10-digit mobile"
           keyboardType="phone-pad"
+          maxLength={10}
           returnKeyType="search"
           editable={!submitting}
           hint={riderHint}

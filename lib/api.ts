@@ -2,10 +2,29 @@ import { API_BASE_URL } from '@/constants/config';
 
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  /** Machine-readable failure code from the backend, when present. */
+  code?: string;
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.status = status;
+    this.code = code;
   }
+}
+
+// ---- Global 401 (session expired) handling ----
+// api.ts can't reach the React auth context directly, so the context registers
+// its signOut here on mount. A 401 anywhere calls this exactly once per burst.
+
+type UnauthorizedHandler = (code?: string) => void;
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+
+export function setUnauthorizedHandler(fn: UnauthorizedHandler | null): void {
+  unauthorizedHandler = fn;
+}
+
+function handleUnauthorized(code?: string): void {
+  // signOut itself is idempotent; the handler just forwards the signal.
+  unauthorizedHandler?.(code);
 }
 
 type FetchOptions = {
@@ -60,8 +79,12 @@ async function apiFetch<T>(path: string, opts: FetchOptions = {}): Promise<T> {
   const data = text ? safeJson(text) : null;
 
   if (!res!.ok) {
+    const code = data && (data.code as string | undefined);
     const message = (data && (data.error as string)) || `Request failed (${res!.status})`;
-    throw new ApiError(message, res!.status);
+    // 401 = authentication failure (token_expired | unauthorized) → force logout.
+    // 403 = permission failure (forbidden) → surfaced as an error, never logs out.
+    if (res!.status === 401) handleUnauthorized(code);
+    throw new ApiError(message, res!.status, code);
   }
   return data as T;
 }
@@ -100,6 +123,14 @@ export function getSession(token: string) {
   return apiFetch<SessionUser>('/api/auth/session', { token });
 }
 
+// ---- Payment modes (shared across rent, returns, penalties) ----
+
+/** Canonical payment-mode vocabulary, mirroring the dashboard contract. */
+export type PaymentMode = 'Cash' | 'Online' | 'Cash + Online';
+
+/** Ordered list of payment modes for UI selectors. */
+export const PAYMENT_MODES: readonly PaymentMode[] = ['Cash', 'Online', 'Cash + Online'];
+
 // ---- Riders ----
 
 export type Rider = {
@@ -111,6 +142,7 @@ export type Rider = {
   hub_name: string | null;
   vehicle_number: string | null;
   rent_received_this_month: boolean;
+  has_active_assignment?: boolean;
   next_due_date?: string;
   last_due_date?: string;
 };
@@ -297,9 +329,15 @@ export type ReturnPayload = {
   returned_date?: string | null;
   rent_cleared?: boolean | null;
   penalty_amount?: number | null;
+  /** Free-text penalty note. If present (or penalty_amount), backend creates a rider_penalties row. */
+  penalty_detail?: string | null;
   condition_on_return?: string[] | null;
   return_photos?: string[] | null;
   return_remarks?: string | null;
+  /** Rent settlement proof — REQUIRED when rent_cleared === true. */
+  rent_settlement_mode?: PaymentMode | null;
+  rent_settlement_utr?: string | null;
+  rent_settlement_proof_url?: string | null;
 };
 
 export function returnAllotment(token: string, assignmentId: string, body: ReturnPayload) {
@@ -379,7 +417,9 @@ export async function uploadFile(token: string, asset: UploadAsset, folder: stri
   const text = await res.text();
   const data = text ? safeJson(text) : null;
   if (!res.ok) {
-    throw new ApiError((data && (data.error as string)) || `Upload failed (${res.status})`, res.status);
+    const code = data && (data.code as string | undefined);
+    if (res.status === 401) handleUnauthorized(code);
+    throw new ApiError((data && (data.error as string)) || `Upload failed (${res.status})`, res.status, code);
   }
   return data as { key: string };
 }
@@ -407,11 +447,54 @@ export type RecordRent = {
   period_start: string;
   period_end: string;
   vehicle_id?: string | null;
-  payment_screenshot_url?: string | null;
+  /** Backend rejects with 400 unless payment_mode AND payment_screenshot_url are present. */
+  payment_mode: PaymentMode;
+  payment_utr?: string | null;
+  payment_screenshot_url: string;
 };
 
 export function recordRentReceived(token: string, riderId: string, body: RecordRent) {
   return apiFetch<{ ok: boolean }>(`/api/riders/${riderId}/rent-received`, { method: 'POST', body, token });
+}
+
+// ---- Rider penalties ----
+
+export type RiderPenalty = {
+  id: string;
+  amount: number | string | null;
+  detail: string;
+  status: 'pending' | 'paid' | 'waived';
+  created_by: string | null;
+  created_at: string;
+  ev_number: string | null;
+  payment_mode: string | null;
+  payment_utr: string | null;
+  payment_proof_url: string | null;
+};
+
+export function getRiderPenalties(token: string, riderId: string) {
+  return apiFetch<{ penalties: RiderPenalty[] }>(`/api/riders/${riderId}/penalties`, { token });
+}
+
+export function addRiderPenalty(
+  token: string,
+  riderId: string,
+  body: { detail: string; amount?: number | null }
+) {
+  return apiFetch<{ ok: boolean }>(`/api/riders/${riderId}/penalties`, { method: 'POST', body, token });
+}
+
+export type UpdateRiderPenalty = {
+  penalty_id: string;
+  action: 'pay' | 'waive';
+  /** Required for action:'pay'. */
+  payment_mode?: PaymentMode | null;
+  payment_utr?: string | null;
+  payment_proof_url?: string;
+};
+
+export function updateRiderPenalty(token: string, riderId: string, body: UpdateRiderPenalty) {
+  return apiFetch<{ ok: boolean }>(`/api/riders/${riderId}/penalties`, { method: 'PATCH', body, token });
 }
 
 export type RentSummary = {

@@ -15,16 +15,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, radius, space } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
+import { isValidEmail } from '@/lib/validation';
 
 export default function LoginScreen() {
-  const { signIn } = useAuth();
+  const { signIn, sessionExpired } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const canSubmit = email.trim().length > 0 && password.length > 0 && !submitting;
+  const emailValid = isValidEmail(email);
+  const showEmailError = email.trim().length > 0 && !emailValid;
+  const canSubmit = emailValid && password.length > 0 && !submitting;
 
   const onSubmit = async () => {
     if (!canSubmit) return;
@@ -57,11 +60,18 @@ export default function LoginScreen() {
           <Text style={styles.title}>Sign in</Text>
           <Text style={styles.subtitle}>Use your MoveGrid dashboard account.</Text>
 
+          {sessionExpired ? (
+            <View style={styles.noticeBox}>
+              <FontAwesome name="clock-o" size={14} color={colors.textMuted} />
+              <Text style={styles.noticeText}>Session expired, please sign in again.</Text>
+            </View>
+          ) : null}
+
           {/* Email */}
           <View style={styles.field}>
             <Text style={styles.label}>Email</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, showEmailError && styles.inputError]}
               value={email}
               onChangeText={setEmail}
               placeholder="you@movegrid.in"
@@ -73,6 +83,7 @@ export default function LoginScreen() {
               returnKeyType="next"
               editable={!submitting}
             />
+            {showEmailError ? <Text style={styles.fieldError}>Enter a valid email address</Text> : null}
           </View>
 
           {/* Password */}
@@ -191,6 +202,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
   },
+  inputError: {
+    borderColor: colors.danger,
+  },
+  fieldError: {
+    color: colors.danger,
+    fontSize: 12,
+    fontWeight: '500',
+  },
   passwordRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -217,6 +236,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dangerSoft,
     borderRadius: radius.md,
     padding: space(3),
+  },
+  noticeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space(2),
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    padding: space(3),
+  },
+  noticeText: {
+    flex: 1,
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: '500',
   },
   errorText: {
     flex: 1,

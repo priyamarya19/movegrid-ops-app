@@ -5,7 +5,13 @@ import { Text, View, StyleSheet } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/Form';
 import { ErrorBanner, FormScreen } from '@/components/ui/FormScreen';
-import { ImageField } from '@/components/ui/ImageField';
+import {
+  emptyPaymentProof,
+  isOnlineMode,
+  isPaymentProofComplete,
+  PaymentProof,
+  type PaymentProofValue,
+} from '@/components/ui/PaymentProof';
 import { useToast } from '@/components/ui/Toast';
 import { colors, radius, space } from '@/constants/theme';
 import { recordRentReceived } from '@/lib/api';
@@ -26,14 +32,15 @@ export default function RentCollectScreen() {
   }>();
 
   const [amount, setAmount] = useState(params.dueAmount ?? '');
-  const [photo, setPhoto] = useState('');
+  const [proof, setProof] = useState<PaymentProofValue>(emptyPaymentProof);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = amount.trim().length > 0 && Number(amount) > 0 && !submitting;
+  const canSubmit =
+    amount.trim().length > 0 && Number(amount) > 0 && isPaymentProofComplete(proof) && !submitting;
 
   const onSubmit = async () => {
-    if (!token || !canSubmit) return;
+    if (!token || !canSubmit || !proof.mode) return;
     setError(null);
     setSubmitting(true);
     try {
@@ -42,7 +49,9 @@ export default function RentCollectScreen() {
         period_start: params.periodStart,
         period_end: params.periodEnd,
         vehicle_id: params.vehicleId || null,
-        payment_screenshot_url: photo || null,
+        payment_mode: proof.mode,
+        payment_utr: isOnlineMode(proof.mode) ? proof.utr.trim() || null : null,
+        payment_screenshot_url: proof.proofKey,
       });
       toast('Rent collection recorded', 'success');
       router.back();
@@ -74,7 +83,7 @@ export default function RentCollectScreen() {
           keyboardType="numeric"
           editable={!submitting}
         />
-        <ImageField label="Payment screenshot" folder="payments" value={photo} onChange={setPhoto} />
+        <PaymentProof value={proof} onChange={setProof} folder="payments" />
 
         {error ? <ErrorBanner message={error} /> : null}
 

@@ -24,6 +24,8 @@ const SECTIONS: Item[] = [
   { icon: 'line-chart', label: 'Investors', roles: ['admin'] },
   { icon: 'list-alt', label: 'Audit logs', roles: ['admin'] },
   { icon: 'cog', label: 'Settings', href: '/settings', roles: [...ALL_OPS, 'investor'] },
+  // Diagnostics: the on-device network log is opened with a shake gesture
+  // (see lib/useShake.ts, mounted in app/_layout.tsx) rather than a menu row.
 ];
 
 export default function MoreScreen() {

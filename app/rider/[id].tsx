@@ -1,7 +1,7 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback } from 'react';
-import { Pressable, RefreshControl, ScrollView, Text, View, StyleSheet } from 'react-native';
+import { useCallback, useState } from 'react';
+import { Alert, Pressable, RefreshControl, ScrollView, Text, View, StyleSheet } from 'react-native';
 
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -9,8 +9,17 @@ import { FieldCard, Section } from '@/components/ui/Detail';
 import { ErrorState, LoadingState } from '@/components/ui/QueryStates';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { colors, radius, space } from '@/constants/theme';
-import { getRider, getRiderRentCycle, type RentWeek, type RiderDetail } from '@/lib/api';
-import { formatDate, formatINR, rentStatusPill, riderStatusPill } from '@/lib/format';
+import {
+  getRider,
+  getRiderPenalties,
+  getRiderRentCycle,
+  updateRiderPenalty,
+  type RentWeek,
+  type RiderDetail,
+  type RiderPenalty,
+} from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
+import { formatDate, formatINR, penaltyStatusPill, rentStatusPill, riderStatusPill } from '@/lib/format';
 import { useApiQuery } from '@/lib/useApiQuery';
 
 export default function RiderDetailScreen() {
@@ -97,6 +106,10 @@ function RiderBody({ data, refreshing, onRefresh }: { data: RiderDetail; refresh
 
       <Section title="Rent ledger">
         <RentLedger riderId={rider.id} riderName={rider.name} />
+      </Section>
+
+      <Section title="Penalties">
+        <Penalties riderId={rider.id} riderName={rider.name} />
       </Section>
 
       <Section title="Payments">
@@ -208,6 +221,138 @@ function RentLedger({ riderId, riderName }: { riderId: string; riderName: string
   );
 }
 
+function toNumber(v: number | string | null): number {
+  if (v === null || v === '') return 0;
+  const n = Number(v);
+  return Number.isNaN(n) ? 0 : n;
+}
+
+function Penalties({ riderId, riderName }: { riderId: string; riderName: string }) {
+  const router = useRouter();
+  const { token } = useAuth();
+  const fetcher = useCallback((t: string) => getRiderPenalties(t, riderId), [riderId]);
+  const { data, loading, error, refetch } = useApiQuery<{ penalties: RiderPenalty[] }>(fetcher, [riderId], {
+    cacheKey: `rider-penalties:${riderId}`,
+  });
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const addBtn = (
+    <Button
+      title="Add penalty"
+      variant="primary"
+      onPress={() =>
+        router.push({ pathname: '/rider/penalty-new', params: { riderId, riderName } })
+      }
+    />
+  );
+
+  if (loading) {
+    return (
+      <Card>
+        <Text style={styles.muted}>Loading penalties…</Text>
+      </Card>
+    );
+  }
+  if (error) {
+    return (
+      <Card>
+        <Text style={styles.muted}>{error}</Text>
+      </Card>
+    );
+  }
+
+  const penalties = data?.penalties ?? [];
+  const outstanding = penalties
+    .filter((p) => p.status === 'pending')
+    .reduce((sum, p) => sum + toNumber(p.amount), 0);
+
+  const waive = (p: RiderPenalty) => {
+    Alert.alert('Waive penalty', `Waive this penalty for ${riderName}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Waive',
+        style: 'destructive',
+        onPress: async () => {
+          if (!token) return;
+          setBusyId(p.id);
+          try {
+            await updateRiderPenalty(token, riderId, { penalty_id: p.id, action: 'waive' });
+            refetch();
+          } catch (e) {
+            Alert.alert('Failed', e instanceof Error ? e.message : 'Could not waive penalty');
+          } finally {
+            setBusyId(null);
+          }
+        },
+      },
+    ]);
+  };
+
+  return (
+    <>
+      {outstanding > 0 ? (
+        <FieldCard rows={[{ label: 'Outstanding', value: formatINR(outstanding) }]} />
+      ) : null}
+
+      {penalties.length > 0 ? (
+        <Card style={styles.listCard}>
+          {penalties.map((p, i) => {
+            const pill = penaltyStatusPill(p.status);
+            const pending = p.status === 'pending';
+            const busy = busyId === p.id;
+            return (
+              <View key={p.id} style={[styles.penaltyRow, i > 0 && styles.rowBorder]}>
+                <View style={styles.penaltyHead}>
+                  <View style={styles.penaltyMain}>
+                    <Text style={styles.weekTitle}>{p.detail}</Text>
+                    <Text style={styles.payMeta}>
+                      {p.amount != null && p.amount !== '' ? formatINR(p.amount) : '—'}
+                      {p.ev_number ? ` · ${p.ev_number}` : ''}
+                    </Text>
+                  </View>
+                  <StatusPill label={pill.label} tone={pill.tone} />
+                </View>
+                {pending ? (
+                  <View style={styles.penaltyActions}>
+                    <Pressable
+                      disabled={busy}
+                      onPress={() =>
+                        router.push({
+                          pathname: '/rider/penalty-pay',
+                          params: {
+                            riderId,
+                            penaltyId: p.id,
+                            detail: p.detail,
+                            amount: p.amount != null ? String(p.amount) : '',
+                          },
+                        })
+                      }
+                      style={({ pressed }) => [styles.penaltyAction, pressed && styles.pressed]}>
+                      <Text style={styles.payAction}>Mark paid</Text>
+                    </Pressable>
+                    <Pressable
+                      disabled={busy}
+                      onPress={() => waive(p)}
+                      style={({ pressed }) => [styles.penaltyAction, pressed && styles.pressed]}>
+                      <Text style={styles.waiveAction}>{busy ? 'Waiving…' : 'Waive'}</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
+        </Card>
+      ) : (
+        <Card>
+          <Text style={styles.muted}>No penalties.</Text>
+        </Card>
+      )}
+
+      {addBtn}
+    </>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: space(4), gap: space(5), paddingBottom: space(10) },
@@ -244,4 +389,11 @@ const styles = StyleSheet.create({
   weekMain: { flex: 1 },
   weekTitle: { color: colors.text, fontSize: 15, fontWeight: '600' },
   pressed: { opacity: 0.6 },
+  penaltyRow: { padding: space(4), gap: space(2.5) },
+  penaltyHead: { flexDirection: 'row', alignItems: 'center', gap: space(3) },
+  penaltyMain: { flex: 1 },
+  penaltyActions: { flexDirection: 'row', gap: space(5) },
+  penaltyAction: { paddingVertical: space(1) },
+  payAction: { color: colors.accent, fontSize: 14, fontWeight: '700' },
+  waiveAction: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
 });

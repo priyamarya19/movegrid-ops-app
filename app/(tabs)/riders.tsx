@@ -7,20 +7,29 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/ui/QueryState
 import { SearchBar } from '@/components/ui/SearchBar';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { colors, radius, space } from '@/constants/theme';
-import { riderStatusPill } from '@/lib/format';
+import { formatDate, riderStatusPill } from '@/lib/format';
 import { getOverdueRiders, getRiders, type OverdueRider, type Rider } from '@/lib/api';
 import { useApiQuery } from '@/lib/useApiQuery';
 
-type RidersData = { riders: Rider[]; overdue: OverdueRider[] };
+type RidersData = { riders: Rider[]; overdue: OverdueRider[]; dueSoon: Rider[] };
 
 async function loadRiders(token: string): Promise<RidersData> {
-  const [riders, overdue] = await Promise.all([getRiders(token), getOverdueRiders(token)]);
-  return { riders, overdue: overdue.riders };
+  const [riders, overdue, dueSoon] = await Promise.all([
+    getRiders(token),
+    getOverdueRiders(token),
+    // Server computes "due soon" as riders whose next rent week starts within
+    // today+2 days and is still unpaid — exactly the "Due" tab semantics.
+    getRiders(token, { rent: 'due_soon' }),
+  ]);
+  return { riders, overdue: overdue.riders, dueSoon };
 }
+
+type FilterValue = 'all' | 'overdue' | 'due';
 
 const FILTERS = [
   { label: 'All', value: 'all' },
   { label: 'Overdue', value: 'overdue' },
+  { label: 'Due', value: 'due' },
 ] as const;
 
 export default function RidersScreen() {
@@ -32,11 +41,12 @@ export default function RidersScreen() {
 
   const params = useLocalSearchParams<{ filter?: string }>();
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'all' | 'overdue'>(params.filter === 'overdue' ? 'overdue' : 'all');
+  const [filter, setFilter] = useState<FilterValue>(params.filter === 'overdue' ? 'overdue' : 'all');
 
   // Honour ?filter=overdue when navigated in from the Home "Overdue" card.
   useEffect(() => {
     if (params.filter === 'overdue') setFilter('overdue');
+    else if (params.filter === 'due') setFilter('due');
   }, [params.filter]);
 
   const overdueById = useMemo(
@@ -44,9 +54,28 @@ export default function RidersScreen() {
     [data?.overdue]
   );
 
+  // Riders whose upcoming rent week (next_due_date within today+2, unpaid) is
+  // coming due. Server-side `rent=due_soon` already applies that window.
+  const dueSoonById = useMemo(
+    () => new Map((data?.dueSoon ?? []).map((r) => [r.id, r])),
+    [data?.dueSoon]
+  );
+
+  // Earliest upcoming due date across the "due soon" set — surfaced on the Due
+  // list header. (A per-rider week NUMBER is not available from the API; see
+  // note in the recon report.)
+  const nextDueDate = useMemo(() => {
+    const dates = (data?.dueSoon ?? [])
+      .map((r) => r.next_due_date)
+      .filter((d): d is string => Boolean(d))
+      .sort();
+    return dates[0];
+  }, [data?.dueSoon]);
+
   const rows = useMemo(() => {
     let list = data?.riders ?? [];
     if (filter === 'overdue') list = list.filter((r) => overdueById.has(r.id));
+    else if (filter === 'due') list = list.filter((r) => dueSoonById.has(r.id));
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter(
@@ -56,8 +85,14 @@ export default function RidersScreen() {
           r.rider_code?.toLowerCase().includes(q)
       );
     }
+    // Overdue view: sort by overdue weeks, most overdue first (stable for ties).
+    if (filter === 'overdue') {
+      list = [...list].sort(
+        (a, b) => (overdueById.get(b.id)?.overdue_weeks ?? 0) - (overdueById.get(a.id)?.overdue_weeks ?? 0)
+      );
+    }
     return list;
-  }, [data?.riders, overdueById, filter, search]);
+  }, [data?.riders, overdueById, dueSoonById, filter, search]);
 
   if (loading) return <LoadingState label="Loading riders…" />;
   if (error) return <ErrorState message={error} onRetry={refetch} />;
@@ -69,7 +104,12 @@ export default function RidersScreen() {
         <View style={styles.chips}>
           {FILTERS.map((f) => {
             const active = f.value === filter;
-            const count = f.value === 'overdue' ? data?.overdue.length ?? 0 : undefined;
+            const count =
+              f.value === 'overdue'
+                ? data?.overdue.length ?? 0
+                : f.value === 'due'
+                ? data?.dueSoon.length ?? 0
+                : undefined;
             return (
               <Pressable
                 key={f.value}
@@ -93,6 +133,16 @@ export default function RidersScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refetch} tintColor={colors.accent} />}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         keyboardDismissMode="on-drag"
+        ListHeaderComponent={
+          filter === 'due' && nextDueDate ? (
+            <View style={styles.dueHeader}>
+              <FontAwesome name="calendar-o" size={12} color={colors.warning} />
+              <Text style={styles.dueHeaderText}>
+                Upcoming rent week — earliest due {formatDate(nextDueDate)}
+              </Text>
+            </View>
+          ) : null
+        }
         ListEmptyComponent={<EmptyState icon="users" message="No riders match." />}
         renderItem={({ item }) => {
           const overdue = overdueById.get(item.id);
@@ -117,7 +167,7 @@ export default function RidersScreen() {
                       {overdue.overdue_weeks} wk overdue · ₹{overdue.overdue_amount.toLocaleString('en-IN')}
                     </Text>
                   </View>
-                ) : (
+                ) : item.has_active_assignment === true ? (
                   <View style={styles.subRow}>
                     <FontAwesome
                       name={item.rent_received_this_month ? 'check-circle' : 'clock-o'}
@@ -128,7 +178,7 @@ export default function RidersScreen() {
                       {item.rent_received_this_month ? 'Rent paid this month' : 'Rent due'}
                     </Text>
                   </View>
-                )}
+                ) : null}
               </View>
               <StatusPill label={pill.label} tone={pill.tone} />
               <FontAwesome name="angle-right" size={18} color={colors.textFaint} />
@@ -184,4 +234,13 @@ const styles = StyleSheet.create({
   subRow: { flexDirection: 'row', alignItems: 'center', gap: space(1.5) },
   subText: { color: colors.textMuted, fontSize: 12 },
   overdueText: { color: colors.danger, fontSize: 12, fontWeight: '600' },
+  dueHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space(2),
+    paddingVertical: space(2),
+    paddingHorizontal: space(1),
+    marginBottom: space(1),
+  },
+  dueHeaderText: { color: colors.warning, fontSize: 12, fontWeight: '600' },
 });

@@ -6,6 +6,13 @@ import { Button } from '@/components/ui/Button';
 import { ChipSelect, DateField, MultiChipSelect, TextField } from '@/components/ui/Form';
 import { ErrorBanner, FormScreen } from '@/components/ui/FormScreen';
 import { ImageField } from '@/components/ui/ImageField';
+import {
+  emptyPaymentProof,
+  isOnlineMode,
+  isPaymentProofComplete,
+  PaymentProof,
+  type PaymentProofValue,
+} from '@/components/ui/PaymentProof';
 import { colors, space } from '@/constants/theme';
 import { ApiError, getActiveAssignment, lookupVehicle, returnAllotment, type ActiveAssignment } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -40,6 +47,8 @@ export default function ReturnVehicleScreen() {
   const [returnedDate, setReturnedDate] = useState(today());
   const [rentCleared, setRentCleared] = useState<string | null>(null);
   const [penalty, setPenalty] = useState('');
+  const [penaltyDetail, setPenaltyDetail] = useState('');
+  const [settlement, setSettlement] = useState<PaymentProofValue>(emptyPaymentProof);
   const [remarks, setRemarks] = useState('');
   const [conditions, setConditions] = useState<string[]>([]);
   const [photos, setPhotos] = useState<string[]>(['', '', '']);
@@ -90,7 +99,9 @@ export default function ReturnVehicleScreen() {
       return next;
     });
 
-  const canSubmit = !!assignment && !!rentCleared && !submitting;
+  const rentSettled = rentCleared === 'yes';
+  const canSubmit =
+    !!assignment && !!rentCleared && (!rentSettled || isPaymentProofComplete(settlement)) && !submitting;
 
   const onSubmit = async () => {
     if (!token || !assignment) return;
@@ -101,9 +112,13 @@ export default function ReturnVehicleScreen() {
         returned_date: returnedDate,
         rent_cleared: rentCleared ? rentCleared === 'yes' : null,
         penalty_amount: penalty.trim() ? Number(penalty) : null,
+        penalty_detail: penaltyDetail.trim() || null,
         condition_on_return: conditions.length ? conditions : null,
         return_photos: photos.filter(Boolean).length ? photos.filter(Boolean) : null,
         return_remarks: remarks.trim() || null,
+        rent_settlement_mode: rentSettled ? settlement.mode : null,
+        rent_settlement_utr: rentSettled && isOnlineMode(settlement.mode) ? settlement.utr.trim() || null : null,
+        rent_settlement_proof_url: rentSettled ? settlement.proofKey : null,
       });
       Alert.alert('Vehicle returned', `${assignment.ev_number} marked as returned.`, [
         { text: 'OK', onPress: () => router.replace('/(tabs)/vehicles') },
@@ -135,12 +150,23 @@ export default function ReturnVehicleScreen() {
 
         <Text style={styles.section}>Return details</Text>
         <ChipSelect label="All rent paid?" options={RENT_CLEARED} value={rentCleared} onChange={setRentCleared} />
+        {rentSettled ? (
+          <PaymentProof value={settlement} onChange={setSettlement} folder="returns" label="Settlement mode" />
+        ) : null}
         <TextField
           label="Penalty amount (₹)"
           value={penalty}
           onChangeText={setPenalty}
           placeholder="0"
           keyboardType="numeric"
+          editable={!submitting}
+        />
+        <TextField
+          label="Penalty detail"
+          value={penaltyDetail}
+          onChangeText={setPenaltyDetail}
+          placeholder="Reason for penalty (optional)"
+          multiline
           editable={!submitting}
         />
         <TextField

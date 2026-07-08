@@ -9,6 +9,7 @@ import { ImageField } from '@/components/ui/ImageField';
 import { colors, radius, space } from '@/constants/theme';
 import { ApiError, checkBlacklist, createRider, type NewRider } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { digitsOnly, isValidMobile } from '@/lib/validation';
 
 const EMPTY = {
   name: '',
@@ -51,6 +52,12 @@ export default function NewRiderScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const set = (k: keyof FormState, v: string) => setForm((p) => ({ ...p, [k]: v }));
+  // Phone fields: keep only digits, capped at 10, so the user can't overtype.
+  const setPhone = (k: keyof FormState, v: string) => set(k, digitsOnly(v).slice(0, 10));
+
+  const mobileValid = isValidMobile(form.mobile);
+  const familyRefMobileValid = !form.family_ref_mobile.trim() || isValidMobile(form.family_ref_mobile);
+  const localRefMobileValid = !form.local_ref_mobile.trim() || isValidMobile(form.local_ref_mobile);
 
   const checkAadhaar = async () => {
     const clean = form.aadhaar.replace(/\s/g, '');
@@ -66,7 +73,8 @@ export default function NewRiderScreen() {
     }
   };
 
-  const page1Valid = form.name.trim() && form.mobile.trim() && form.current_address.trim();
+  const page1Valid = form.name.trim() && mobileValid && form.current_address.trim();
+  const page2Valid = familyRefMobileValid && localRefMobileValid;
 
   const nullify = (v: string) => (v.trim() ? v.trim() : null);
 
@@ -124,7 +132,18 @@ export default function NewRiderScreen() {
             <Text style={styles.section}>Personal info</Text>
             <TextField label="Full name" required value={form.name} onChangeText={(v) => set('name', v)} placeholder="Ravi Kumar" editable={!submitting} />
             <TextField label="Nickname" value={form.nickname} onChangeText={(v) => set('nickname', v)} placeholder="Ravi" editable={!submitting} />
-            <TextField label="Mobile number" required value={form.mobile} onChangeText={(v) => set('mobile', v)} placeholder="10-digit mobile" keyboardType="phone-pad" editable={!submitting} />
+            <TextField
+              label="Mobile number"
+              required
+              value={form.mobile}
+              onChangeText={(v) => setPhone('mobile', v)}
+              placeholder="10-digit mobile"
+              keyboardType="phone-pad"
+              maxLength={10}
+              editable={!submitting}
+              tone={form.mobile.length > 0 && !mobileValid ? 'error' : 'default'}
+              hint={form.mobile.length > 0 && !mobileValid ? 'Enter exactly 10 digits' : undefined}
+            />
             <ImageField label="Rider photo" folder="riders" value={form.profile_photo_url} onChange={(k) => set('profile_photo_url', k)} />
             <TextField label="Current address" required value={form.current_address} onChangeText={(v) => set('current_address', v)} placeholder="Current residential address" multiline editable={!submitting} />
             <TextField label="Permanent address" value={form.permanent_address} onChangeText={(v) => set('permanent_address', v)} placeholder="From Aadhaar" multiline editable={!submitting} />
@@ -167,11 +186,31 @@ export default function NewRiderScreen() {
 
             <Text style={styles.section}>References</Text>
             <TextField label="Family ref name" value={form.family_ref_name} onChangeText={(v) => set('family_ref_name', v)} placeholder="Name" editable={!submitting} />
-            <TextField label="Family ref mobile" value={form.family_ref_mobile} onChangeText={(v) => set('family_ref_mobile', v)} placeholder="10-digit mobile" keyboardType="phone-pad" editable={!submitting} />
+            <TextField
+              label="Family ref mobile"
+              value={form.family_ref_mobile}
+              onChangeText={(v) => setPhone('family_ref_mobile', v)}
+              placeholder="10-digit mobile"
+              keyboardType="phone-pad"
+              maxLength={10}
+              editable={!submitting}
+              tone={!familyRefMobileValid ? 'error' : 'default'}
+              hint={!familyRefMobileValid ? 'Enter exactly 10 digits' : undefined}
+            />
             <TextField label="Family ref Aadhaar" value={form.family_ref_aadhaar} onChangeText={(v) => set('family_ref_aadhaar', v)} placeholder="XXXX XXXX XXXX" keyboardType="number-pad" editable={!submitting} />
             <ImageField label="Family ref Aadhaar doc" folder="kyc" value={form.family_ref_aadhaar_url} onChange={(k) => set('family_ref_aadhaar_url', k)} />
             <TextField label="Local ref name" value={form.local_ref_name} onChangeText={(v) => set('local_ref_name', v)} placeholder="Name" editable={!submitting} />
-            <TextField label="Local ref mobile" value={form.local_ref_mobile} onChangeText={(v) => set('local_ref_mobile', v)} placeholder="10-digit mobile" keyboardType="phone-pad" editable={!submitting} />
+            <TextField
+              label="Local ref mobile"
+              value={form.local_ref_mobile}
+              onChangeText={(v) => setPhone('local_ref_mobile', v)}
+              placeholder="10-digit mobile"
+              keyboardType="phone-pad"
+              maxLength={10}
+              editable={!submitting}
+              tone={!localRefMobileValid ? 'error' : 'default'}
+              hint={!localRefMobileValid ? 'Enter exactly 10 digits' : undefined}
+            />
 
             {error ? <ErrorBanner message={error} /> : null}
 
@@ -180,7 +219,7 @@ export default function NewRiderScreen() {
                 <Text style={styles.backText}>Back</Text>
               </Pressable>
               <View style={styles.submitWrap}>
-                <Button title="Add rider" onPress={onSubmit} loading={submitting} />
+                <Button title="Add rider" onPress={onSubmit} loading={submitting} disabled={!page2Valid} />
               </View>
             </View>
           </>

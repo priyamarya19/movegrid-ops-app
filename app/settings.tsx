@@ -13,6 +13,7 @@ import { colors, radius, space } from '@/constants/theme';
 import { changePassword, getProfile, updateProfile, type Profile } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { roleLabel } from '@/lib/roles';
+import { digitsOnly, isValidMobile } from '@/lib/validation';
 import { useApiQuery } from '@/lib/useApiQuery';
 
 export default function SettingsScreen() {
@@ -50,6 +51,8 @@ function SettingsBody({ profile, onChanged }: { profile: Profile; onChanged: () 
 
   // Keep the photo key in sync if the profile refetches.
   useEffect(() => setPhotoKey(profile.photo_url ?? ''), [profile.photo_url]);
+
+  const mobileValid = !mobile.trim() || isValidMobile(mobile);
 
   const onPhotoChange = async (key: string) => {
     if (!token) return;
@@ -125,16 +128,19 @@ function SettingsBody({ profile, onChanged }: { profile: Profile; onChanged: () 
       <TextField
         label="Mobile"
         value={mobile}
-        onChangeText={setMobile}
+        onChangeText={(v) => setMobile(digitsOnly(v).slice(0, 10))}
         placeholder="10-digit mobile"
         keyboardType="phone-pad"
+        maxLength={10}
         editable={!savingProfile}
+        tone={!mobileValid ? 'error' : 'default'}
+        hint={!mobileValid ? 'Enter exactly 10 digits' : undefined}
       />
       <View style={styles.readonly}>
         <FontAwesome name="envelope-o" size={13} color={colors.textFaint} />
         <Text style={styles.readonlyText}>{profile.email}</Text>
       </View>
-      <Button title="Save profile" onPress={saveProfile} loading={savingProfile} disabled={!name.trim()} />
+      <Button title="Save profile" onPress={saveProfile} loading={savingProfile} disabled={!name.trim() || !mobileValid} />
 
       <Text style={styles.section}>Change password</Text>
       <TextField label="Current password" value={current} onChangeText={setCurrent} secureTextEntry editable={!changingPw} />

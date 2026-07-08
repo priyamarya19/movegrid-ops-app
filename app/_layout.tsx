@@ -7,10 +7,15 @@ import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
+// Side-effect import: starts the on-device network logger before any API call
+// fires, so it captures all requests (and failures) in Expo Go and the APK.
+import '@/lib/network-log';
+
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import { ToastProvider } from '@/components/ui/Toast';
 import { colors } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
+import { useShake } from '@/lib/useShake';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -76,6 +81,13 @@ function RootNavigator() {
     SplashScreen.hideAsync();
   }, []);
 
+  // A shake anywhere in the app opens the on-device network log viewer. The
+  // guard avoids re-pushing the screen if it's already on top of the stack.
+  useShake(() => {
+    if (segments[segments.length - 1] === 'network-log') return;
+    router.push('/network-log');
+  });
+
   // Redirect based on auth state once the persisted session has loaded.
   useEffect(() => {
     if (isLoading) return;
@@ -101,6 +113,8 @@ function RootNavigator() {
       <Stack.Screen name="vehicle/[id]" options={{ headerShown: true }} />
       <Stack.Screen name="vehicle/new" options={{ headerShown: true }} />
       <Stack.Screen name="rider/new" options={{ headerShown: true }} />
+      <Stack.Screen name="rider/penalty-new" options={{ headerShown: true }} />
+      <Stack.Screen name="rider/penalty-pay" options={{ headerShown: true }} />
       <Stack.Screen name="allotment/new" options={{ headerShown: true }} />
       <Stack.Screen name="allotment/return" options={{ headerShown: true }} />
       <Stack.Screen name="rent-collect" options={{ headerShown: true }} />
@@ -108,6 +122,7 @@ function RootNavigator() {
       <Stack.Screen name="leads" options={{ headerShown: true }} />
       <Stack.Screen name="forms" options={{ headerShown: true }} />
       <Stack.Screen name="settings" options={{ headerShown: true }} />
+      <Stack.Screen name="network-log" options={{ headerShown: true }} />
       <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
     </Stack>
   );

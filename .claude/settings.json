@@ -1,4 +1,55 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(npm view *)",
+      "Bash(mkdir -p .tmpdl)",
+      "Bash(npm pack *)",
+      "Bash(tar -xzf expo-54.0.35.tgz)",
+      "Bash(tar -xzf template.tgz)",
+      "Bash(npm install *)",
+      "Bash(npx expo *)",
+      "Bash(npx expo-doctor *)",
+      "Bash(CI=1 EXPO_NO_TELEMETRY=1 nohup npx expo start --port 8081)",
+      "Bash(echo \"pid: $!\")",
+      "Bash(curl -s -o /dev/null -w \"bundle HTTP %{http_code}, %{size_download} bytes\\\\n\" \"http://localhost:8081/index.bundle?platform=ios&dev=true\")",
+      "Bash(sed -n '80,160p' app/api/riders/route.ts)",
+      "Bash(awk '/export async function GET/,0' app/api/vehicles/route.ts)",
+      "Bash(curl -s -o .bundle_check.js -w \"bundle HTTP %{http_code}, %{size_download} bytes\\\\n\" --max-time 180 \"http://localhost:8081/node_modules/expo-router/entry.bundle?platform=ios&dev=true&transform.engine=hermes\")",
+      "Bash(curl -s -w '\\\\nHTTP %{http_code}\\\\n' --max-time 10 -X POST http://localhost:3000/api/auth/login -H 'Content-Type: application/json' -H 'X-Client-Type: mobile' -d '{\"email\":\"test@example.com\",\"password\":\"wrongpass\"}')",
+      "Bash(awk '/export async function GET/,/^}/' app/api/riders/\\\\[id\\\\]/route.ts)",
+      "Bash(awk '/export async function GET/,/^}/' app/api/vehicles/\\\\[id\\\\]/route.ts)",
+      "Bash(curl -s -o /dev/null -w \"server 8081 -> HTTP %{http_code}\\\\n\" --max-time 5 http://localhost:8081)",
+      "Bash(curl -s -o .b.js -w \"bundle HTTP %{http_code}, %{size_download} bytes\\\\n\" --max-time 180 \"http://localhost:8081/node_modules/expo-router/entry.bundle?platform=ios&dev=true&transform.engine=hermes\")",
+      "Bash(cat components/home/InvestorHome.tsx)",
+      "Bash(ls app/api/investors/ app/api/investors/*/)",
+      "Bash(node scripts/seed-fleet.mjs)",
+      "Bash(timeout 25 node -e ' *)",
+      "Bash(node -e ' *)",
+      "Bash(rm -f /tmp/introspect.js /Users/fruitrush/movegrid-dashboard/.tmp/*)",
+      "Bash(export TMPDIR=/Users/fruitrush/movegrid-dashboard/.tmp)",
+      "Bash(grep -n \"rental_mode\\\\|business_type\\\\|assigned_hub\\\\|hub_id\" /Users/fruitrush/movegrid-ops-app/app/rider/new.tsx)",
+      "Bash(df -h /private/tmp/claude-502/-Users-fruitrush-movegrid-ops-app/01841b5d-a5b4-4158-b308-fc341980482c/tasks | tail -1; echo \"===\"; du -sh /private/tmp/claude-502 2>/dev/null; find /private/tmp/claude-502 -type f -size +1M 2>/dev/null | head)",
+      "Read(//private/tmp/claude-502/**)",
+      "Bash(node -e \"const p=require\\('./node_modules/jose/package.json'\\); console.log\\('jose version', p.version\\)\")",
+      "Bash(grep -n \"'/api\\\\|\\\\\"/api\\\\|\\\\`/api\" /Users/fruitrush/movegrid-ops-app/lib/api.ts)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"EXIT: $?\")"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/shadow-speak.py\"",
+            "timeout": 30,
+            "async": true
+          }
+        ]
+      }
+    ]
+  },
   "enabledPlugins": {
     "expo@claude-plugins-official": true
   }
