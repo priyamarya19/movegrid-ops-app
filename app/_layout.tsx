@@ -81,9 +81,12 @@ function RootNavigator() {
     SplashScreen.hideAsync();
   }, []);
 
-  // A shake anywhere in the app opens the on-device network log viewer. The
-  // guard avoids re-pushing the screen if it's already on top of the stack.
+  // A shake anywhere in the app opens the on-device network log viewer, but
+  // only during local development. In shared/installed builds (__DEV__ ===
+  // false) the shake is inert so the network log is unreachable. The guard
+  // avoids re-pushing the screen if it's already on top of the stack.
   useShake(() => {
+    if (!__DEV__) return;
     if (segments[segments.length - 1] === 'network-log') return;
     router.push('/network-log');
   });
