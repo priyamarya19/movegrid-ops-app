@@ -7,7 +7,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/ui/QueryState
 import { SearchBar } from '@/components/ui/SearchBar';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { colors, radius, space } from '@/constants/theme';
-import { formatDate, riderStatusPill } from '@/lib/format';
+import { formatDate, formatINR, riderStatusPill } from '@/lib/format';
 import { getOverdueRiders, getRiders, type OverdueRider, type Rider } from '@/lib/api';
 import { useApiQuery } from '@/lib/useApiQuery';
 
@@ -164,7 +164,7 @@ export default function RidersScreen() {
                   <View style={styles.subRow}>
                     <FontAwesome name="exclamation-triangle" size={11} color={colors.danger} />
                     <Text style={styles.overdueText}>
-                      {overdue.overdue_weeks} wk overdue · ₹{overdue.overdue_amount.toLocaleString('en-IN')}
+                      {overdue.overdue_weeks} wk overdue · {formatINR(overdue.overdue_amount)}
                     </Text>
                   </View>
                 ) : item.has_active_assignment === true ? (

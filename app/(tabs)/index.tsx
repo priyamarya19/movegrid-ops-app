@@ -99,7 +99,7 @@ export default function HomeScreen() {
                 <StatCard
                   icon="exclamation-triangle"
                   value={formatINR(data.summary.overdue)}
-                  label={`Overdue · ${data.summary.overdueWeeks} wk`}
+                  label={`Overdue · ${data.summary.overdueRiders} rider${data.summary.overdueRiders === 1 ? '' : 's'}`}
                   tone="danger"
                   onPress={() => router.push({ pathname: '/riders', params: { filter: 'overdue' } })}
                 />

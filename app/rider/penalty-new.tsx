@@ -21,7 +21,9 @@ export default function AddPenaltyScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = detail.trim().length > 0 && !submitting;
+  // Amount is optional, but if entered it must be a positive number.
+  const amountInvalid = amount.trim().length > 0 && !(Number(amount) > 0);
+  const canSubmit = detail.trim().length > 0 && !amountInvalid && !submitting;
 
   const onSubmit = async () => {
     if (!token || !canSubmit) return;
@@ -67,6 +69,8 @@ export default function AddPenaltyScreen() {
           placeholder="Optional"
           keyboardType="numeric"
           editable={!submitting}
+          tone={amountInvalid ? 'error' : 'default'}
+          hint={amountInvalid ? 'Enter a positive amount' : undefined}
         />
 
         {error ? <ErrorBanner message={error} /> : null}

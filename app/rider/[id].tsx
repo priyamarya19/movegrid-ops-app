@@ -1,4 +1,3 @@
-import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, Text, View, StyleSheet } from 'react-native';
@@ -14,9 +13,9 @@ import {
   getRiderPenalties,
   getRiderRentCycle,
   updateRiderPenalty,
-  type RentWeek,
   type RiderDetail,
   type RiderPenalty,
+  type RiderRentCycle,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate, formatINR, penaltyStatusPill, rentStatusPill, riderStatusPill } from '@/lib/format';
@@ -151,7 +150,7 @@ function RiderBody({ data, refreshing, onRefresh }: { data: RiderDetail; refresh
 function RentLedger({ riderId, riderName }: { riderId: string; riderName: string }) {
   const router = useRouter();
   const fetcher = useCallback((token: string) => getRiderRentCycle(token, riderId), [riderId]);
-  const { data, loading, error } = useApiQuery<{ weeks: RentWeek[] }>(fetcher, [riderId], {
+  const { data, loading, error } = useApiQuery<RiderRentCycle>(fetcher, [riderId], {
     cacheKey: `rider-rent:${riderId}`,
   });
 
@@ -170,54 +169,56 @@ function RentLedger({ riderId, riderName }: { riderId: string; riderName: string
     );
   }
   const weeks = data?.weeks ?? [];
-  if (weeks.length === 0) {
-    return (
-      <Card>
-        <Text style={styles.muted}>No rent schedule yet.</Text>
-      </Card>
-    );
-  }
 
-  // Most recent weeks first.
+  // Most recent weeks first. Read-only history/status — recording a payment is
+  // a single rolling action below, not tied to any one week.
   const recent = [...weeks].reverse().slice(0, 12);
 
   return (
-    <Card style={styles.listCard}>
-      {recent.map((w, i) => {
-        const pill = rentStatusPill(w.status);
-        const remaining = Math.max(0, w.amount - w.paid);
-        const collectable = w.status !== 'Collected';
-        return (
-          <Pressable
-            key={`${w.week_no}-${w.period_start}`}
-            disabled={!collectable}
-            onPress={() =>
-              router.push({
-                pathname: '/rent-collect',
-                params: {
-                  riderId,
-                  riderName,
-                  periodStart: w.period_start,
-                  periodEnd: w.period_end,
-                  dueAmount: String(remaining || w.amount),
-                  vehicleId: w.vehicle_id ?? '',
-                },
-              })
-            }
-            style={({ pressed }) => [styles.weekRow, i > 0 && styles.rowBorder, pressed && collectable && styles.pressed]}>
-            <View style={styles.weekMain}>
-              <Text style={styles.weekTitle}>Due {formatDate(w.due_date)}</Text>
-              <Text style={styles.payMeta}>
-                {formatINR(w.paid)} / {formatINR(w.amount)}
-                {w.ev_number ? ` · ${w.ev_number}` : ''}
-              </Text>
-            </View>
-            <StatusPill label={pill.label} tone={pill.tone} />
-            {collectable ? <FontAwesome name="angle-right" size={18} color={colors.textFaint} /> : null}
-          </Pressable>
-        );
-      })}
-    </Card>
+    <>
+      {data?.paid_through_date ? (
+        <FieldCard rows={[{ label: 'Paid through', value: formatDate(data.paid_through_date) }]} />
+      ) : null}
+
+      <Button
+        title="Record payment"
+        onPress={() =>
+          router.push({
+            pathname: '/rent-collect',
+            params: {
+              riderId,
+              riderName,
+              dailyRate: data?.daily_rent != null ? String(data.daily_rent) : '',
+              paidThroughDate: data?.paid_through_date ?? '',
+            },
+          })
+        }
+      />
+
+      {weeks.length === 0 ? (
+        <Card>
+          <Text style={styles.muted}>No rent schedule yet.</Text>
+        </Card>
+      ) : (
+        <Card style={styles.listCard}>
+          {recent.map((w, i) => {
+            const pill = rentStatusPill(w.status);
+            return (
+              <View key={`${w.week_no}-${w.period_start}`} style={[styles.weekRow, i > 0 && styles.rowBorder]}>
+                <View style={styles.weekMain}>
+                  <Text style={styles.weekTitle}>Due {formatDate(w.due_date)}</Text>
+                  <Text style={styles.payMeta}>
+                    {formatINR(w.paid)} / {formatINR(w.amount)}
+                    {w.ev_number ? ` · ${w.ev_number}` : ''}
+                  </Text>
+                </View>
+                <StatusPill label={pill.label} tone={pill.tone} />
+              </View>
+            );
+          })}
+        </Card>
+      )}
+    </>
   );
 }
 

@@ -1,5 +1,5 @@
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Text, StyleSheet } from 'react-native';
 
 import { Button } from '@/components/ui/Button';
@@ -13,10 +13,12 @@ import {
   PaymentProof,
   type PaymentProofValue,
 } from '@/components/ui/PaymentProof';
+import { SelectField, type SelectOption } from '@/components/ui/SelectField';
 import { colors, space } from '@/constants/theme';
-import { ApiError, getActiveAssignment, lookupVehicle, returnAllotment, type ActiveAssignment } from '@/lib/api';
+import { ApiError, getActiveAssignment, getVehicles, returnAllotment, type ActiveAssignment, type Vehicle } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate } from '@/lib/format';
+import { useApiQuery } from '@/lib/useApiQuery';
 
 const RENT_CLEARED = [
   { label: 'Yes — all paid', value: 'yes' },
@@ -38,11 +40,27 @@ export default function ReturnVehicleScreen() {
   const { token } = useAuth();
   const router = useRouter();
 
-  const [ev, setEv] = useState('');
+  // Currently-assigned vehicles for the dropdown — the opposite filter of
+  // allotment/new.tsx, which only shows ready_to_deploy ones.
+  const fetchVehicles = useCallback((t: string) => getVehicles(t), []);
+  const { data: vehicles } = useApiQuery<Vehicle[]>(fetchVehicles, [], { cacheKey: 'vehicles' });
+  const assignedVehicles = useMemo(() => (vehicles ?? []).filter((v) => v.status === 'assigned'), [vehicles]);
+  const vehicleOptions: SelectOption[] = useMemo(
+    () =>
+      assignedVehicles.map((v) => ({
+        value: v.id,
+        label: v.ev_number,
+        sublabel: [[v.oem, v.model_name].filter(Boolean).join(' '), v.hub_name, v.assigned_rider ? `Rider: ${v.assigned_rider}` : null]
+          .filter(Boolean)
+          .join(' · '),
+      })),
+    [assignedVehicles]
+  );
+
+  const [vehicleId, setVehicleId] = useState<string | null>(null);
   const [assignment, setAssignment] = useState<ActiveAssignment | null>(null);
   const [evHint, setEvHint] = useState<string>();
   const [looking, setLooking] = useState(false);
-  const evTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [returnedDate, setReturnedDate] = useState(today());
   const [rentCleared, setRentCleared] = useState<string | null>(null);
@@ -56,38 +74,34 @@ export default function ReturnVehicleScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Debounced EV lookup → active assignment.
+  // Guards async handlers from setState after the screen unmounts mid-request.
+  const mounted = useRef(true);
   useEffect(() => {
-    if (!ev.trim()) {
-      setAssignment(null);
-      setEvHint(undefined);
-      return;
-    }
-    if (evTimer.current) clearTimeout(evTimer.current);
-    evTimer.current = setTimeout(async () => {
-      if (!token) return;
-      setLooking(true);
-      setAssignment(null);
-      setEvHint('Looking up…');
-      try {
-        const v = await lookupVehicle(token, ev.trim());
-        if (v.status !== 'assigned') {
-          setEvHint('This vehicle has no active allotment');
-          return;
-        }
-        const a = await getActiveAssignment(token, v.id);
-        setAssignment(a);
-        setEvHint(`Active allotment — ${a.rider_name} · since ${formatDate(a.assigned_date)}`);
-      } catch (e) {
-        setEvHint(e instanceof ApiError && e.status === 404 ? 'No vehicle / active allotment' : 'Lookup failed');
-      } finally {
-        setLooking(false);
-      }
-    }, 600);
+    mounted.current = true;
     return () => {
-      if (evTimer.current) clearTimeout(evTimer.current);
+      mounted.current = false;
     };
-  }, [ev, token]);
+  }, []);
+
+  // Resolve the active assignment directly from the vehicle picked in the dropdown.
+  const selectVehicle = async (id: string) => {
+    setVehicleId(id);
+    if (!token) return;
+    setLooking(true);
+    setAssignment(null);
+    setEvHint('Looking up…');
+    try {
+      const a = await getActiveAssignment(token, id);
+      if (!mounted.current) return;
+      setAssignment(a);
+      setEvHint(`Active allotment — ${a.rider_name} · since ${formatDate(a.assigned_date)}`);
+    } catch (e) {
+      if (!mounted.current) return;
+      setEvHint(e instanceof ApiError && e.status === 404 ? 'No active allotment for this vehicle' : 'Lookup failed');
+    } finally {
+      if (mounted.current) setLooking(false);
+    }
+  };
 
   const toggleCondition = (c: string) =>
     setConditions((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
@@ -100,11 +114,30 @@ export default function ReturnVehicleScreen() {
     });
 
   const rentSettled = rentCleared === 'yes';
+  // A penalty row needs BOTH an amount and a detail, or neither. One alone
+  // produces a malformed row server-side.
+  const penaltyAmt = penalty.trim();
+  const penaltyDet = penaltyDetail.trim();
+  const penaltyAmtInvalid = penaltyAmt.length > 0 && !(Number(penaltyAmt) > 0);
+  const penaltyHalfFilled = (penaltyAmt.length > 0) !== (penaltyDet.length > 0);
   const canSubmit =
-    !!assignment && !!rentCleared && (!rentSettled || isPaymentProofComplete(settlement)) && !submitting;
+    !!assignment &&
+    !!rentCleared &&
+    (!rentSettled || isPaymentProofComplete(settlement)) &&
+    !penaltyHalfFilled &&
+    !penaltyAmtInvalid &&
+    !submitting;
 
   const onSubmit = async () => {
     if (!token || !assignment) return;
+    if (penaltyHalfFilled) {
+      setError('A penalty needs both an amount and a reason, or leave both blank.');
+      return;
+    }
+    if (penaltyAmtInvalid) {
+      setError('Penalty amount must be a positive number.');
+      return;
+    }
     setError(null);
     setSubmitting(true);
     try {
@@ -120,13 +153,15 @@ export default function ReturnVehicleScreen() {
         rent_settlement_utr: rentSettled && isOnlineMode(settlement.mode) ? settlement.utr.trim() || null : null,
         rent_settlement_proof_url: rentSettled ? settlement.proofKey : null,
       });
+      if (!mounted.current) return;
       Alert.alert('Vehicle returned', `${assignment.ev_number} marked as returned.`, [
         { text: 'OK', onPress: () => router.replace('/(tabs)/vehicles') },
       ]);
     } catch (e) {
+      if (!mounted.current) return;
       setError(e instanceof Error ? e.message : 'Failed to return vehicle');
     } finally {
-      setSubmitting(false);
+      if (mounted.current) setSubmitting(false);
     }
   };
 
@@ -135,17 +170,20 @@ export default function ReturnVehicleScreen() {
       <Stack.Screen options={{ title: 'Return vehicle' }} />
       <FormScreen>
         <Text style={styles.section}>Identify vehicle</Text>
-        <TextField
+        <SelectField
           label="EV / scooter number"
           required
-          value={ev}
-          onChangeText={setEv}
-          placeholder="e.g. MG-001"
-          autoCapitalize="characters"
-          editable={!submitting}
-          hint={evHint}
-          tone={assignment ? 'success' : evHint && !looking ? 'error' : 'default'}
+          placeholder={assignedVehicles.length ? 'Select a vehicle' : 'No assigned vehicles'}
+          value={vehicleId}
+          options={vehicleOptions}
+          onSelect={selectVehicle}
+          emptyText="No currently-assigned vehicles to return."
         />
+        {evHint ? (
+          <Text style={[styles.evHint, { color: assignment ? colors.accent : looking ? colors.textFaint : colors.danger }]}>
+            {evHint}
+          </Text>
+        ) : null}
         <DateField label="Return date" required value={returnedDate} onChange={setReturnedDate} />
 
         <Text style={styles.section}>Return details</Text>
@@ -160,6 +198,14 @@ export default function ReturnVehicleScreen() {
           placeholder="0"
           keyboardType="numeric"
           editable={!submitting}
+          tone={penaltyAmtInvalid || (penaltyHalfFilled && !penaltyAmt) ? 'error' : 'default'}
+          hint={
+            penaltyAmtInvalid
+              ? 'Enter a positive amount'
+              : penaltyHalfFilled && !penaltyAmt
+              ? 'Add an amount to record this penalty'
+              : undefined
+          }
         />
         <TextField
           label="Penalty detail"
@@ -168,6 +214,8 @@ export default function ReturnVehicleScreen() {
           placeholder="Reason for penalty (optional)"
           multiline
           editable={!submitting}
+          tone={penaltyHalfFilled && !penaltyDet ? 'error' : 'default'}
+          hint={penaltyHalfFilled && !penaltyDet ? 'Add a reason to record this penalty' : undefined}
         />
         <TextField
           label="Remarks"
@@ -203,4 +251,5 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     marginTop: space(2),
   },
+  evHint: { fontSize: 12, marginTop: -space(1) },
 });

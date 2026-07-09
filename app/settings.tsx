@@ -13,7 +13,6 @@ import { colors, radius, space } from '@/constants/theme';
 import { changePassword, getProfile, updateProfile, type Profile } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { roleLabel } from '@/lib/roles';
-import { digitsOnly, isValidMobile } from '@/lib/validation';
 import { useApiQuery } from '@/lib/useApiQuery';
 
 export default function SettingsScreen() {
@@ -38,10 +37,7 @@ function SettingsBody({ profile, onChanged }: { profile: Profile; onChanged: () 
   const { token } = useAuth();
   const toast = useToast();
 
-  const [name, setName] = useState(profile.name ?? '');
-  const [mobile, setMobile] = useState(profile.mobile ?? '');
   const [photoKey, setPhotoKey] = useState(profile.photo_url ?? '');
-  const [savingProfile, setSavingProfile] = useState(false);
 
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
@@ -52,8 +48,6 @@ function SettingsBody({ profile, onChanged }: { profile: Profile; onChanged: () 
   // Keep the photo key in sync if the profile refetches.
   useEffect(() => setPhotoKey(profile.photo_url ?? ''), [profile.photo_url]);
 
-  const mobileValid = !mobile.trim() || isValidMobile(mobile);
-
   const onPhotoChange = async (key: string) => {
     if (!token) return;
     setPhotoKey(key);
@@ -63,20 +57,6 @@ function SettingsBody({ profile, onChanged }: { profile: Profile; onChanged: () 
       onChanged();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Failed to update photo', 'error');
-    }
-  };
-
-  const saveProfile = async () => {
-    if (!token || !name.trim()) return;
-    setSavingProfile(true);
-    try {
-      await updateProfile(token, { name: name.trim(), mobile: mobile.trim() || null });
-      toast('Profile saved', 'success');
-      onChanged();
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Failed to save profile', 'error');
-    } finally {
-      setSavingProfile(false);
     }
   };
 
@@ -124,23 +104,21 @@ function SettingsBody({ profile, onChanged }: { profile: Profile; onChanged: () 
       <ImageField label="Profile photo" folder="profiles" value={photoKey} onChange={onPhotoChange} />
 
       <Text style={styles.section}>Profile</Text>
-      <TextField label="Name" required value={name} onChangeText={setName} editable={!savingProfile} />
-      <TextField
-        label="Mobile"
-        value={mobile}
-        onChangeText={(v) => setMobile(digitsOnly(v).slice(0, 10))}
-        placeholder="10-digit mobile"
-        keyboardType="phone-pad"
-        maxLength={10}
-        editable={!savingProfile}
-        tone={!mobileValid ? 'error' : 'default'}
-        hint={!mobileValid ? 'Enter exactly 10 digits' : undefined}
-      />
+      {/* Name/mobile/email are admin-managed on the web dashboard only — no
+          self-edit from the app, for anyone, including the account owner. */}
+      <View style={styles.readonly}>
+        <FontAwesome name="user-o" size={13} color={colors.textFaint} />
+        <Text style={styles.readonlyText}>{profile.name}</Text>
+      </View>
+      <View style={styles.readonly}>
+        <FontAwesome name="phone" size={13} color={colors.textFaint} />
+        <Text style={styles.readonlyText}>{profile.mobile || '—'}</Text>
+      </View>
       <View style={styles.readonly}>
         <FontAwesome name="envelope-o" size={13} color={colors.textFaint} />
         <Text style={styles.readonlyText}>{profile.email}</Text>
       </View>
-      <Button title="Save profile" onPress={saveProfile} loading={savingProfile} disabled={!name.trim() || !mobileValid} />
+      <Text style={styles.hint}>Name, mobile, and email can only be changed by an admin on the dashboard.</Text>
 
       <Text style={styles.section}>Change password</Text>
       <TextField label="Current password" value={current} onChangeText={setCurrent} secureTextEntry editable={!changingPw} />
@@ -188,5 +166,6 @@ const styles = StyleSheet.create({
     paddingVertical: space(1),
   },
   readonlyText: { color: colors.textMuted, fontSize: 13 },
+  hint: { color: colors.textFaint, fontSize: 12, marginTop: space(1) },
   error: { color: colors.danger, fontSize: 13, fontWeight: '500' },
 });

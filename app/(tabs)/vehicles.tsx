@@ -17,6 +17,8 @@ const FILTERS: { label: string; match: (s: string) => boolean }[] = [
   { label: 'Assigned', match: (s) => s === 'assigned' },
   { label: 'Available', match: (s) => ['ready_to_deploy'].includes(s) },
   { label: 'Maintenance', match: (s) => s === 'under_maintenance' || s === 'maintenance' },
+  { label: 'MOK', match: (s) => s === 'mechanically_ok' },
+  { label: 'Returned', match: (s) => s === 'returned' },
 ];
 
 export default function VehiclesScreen() {

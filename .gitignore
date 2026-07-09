@@ -43,3 +43,8 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# not app source: marketing decks and generated reports (riders-report.html
+# has real rider mobile numbers baked in)
+/pitch-decks/
+/reports/

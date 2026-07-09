@@ -37,6 +37,10 @@ export function useApiQuery<T>(
   const [loading, setLoading] = useState(cached === null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Mirror of `data` so `load` can read the current value without being
+  // recreated on every data change (which would retrigger the effects).
+  const dataRef = useRef<T | null>(cached);
+  dataRef.current = data;
 
   const load = useCallback(
     async (isRefresh: boolean) => {
@@ -49,7 +53,15 @@ export function useApiQuery<T>(
         setData(result);
         if (cacheKey) queryCache.set(cacheKey, result);
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to load');
+        const message = e instanceof Error ? e.message : 'Failed to load';
+        // A background/pull-to-refresh failure must NOT wipe good cached data or
+        // flip the screen to a full error state. Only surface the error when we
+        // have nothing to show; otherwise keep the last good data silently.
+        if (isRefresh && dataRef.current !== null) {
+          // keep stale-but-good data; swallow the transient refresh error.
+        } else {
+          setError(message);
+        }
       } finally {
         setRefreshing(false);
         setLoading(false);

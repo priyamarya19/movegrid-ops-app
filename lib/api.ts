@@ -143,8 +143,18 @@ export type Rider = {
   vehicle_number: string | null;
   rent_received_this_month: boolean;
   has_active_assignment?: boolean;
+  // The following are only present when queried with ?rent=overdue|due_soon.
   next_due_date?: string;
   last_due_date?: string;
+  period_days?: number;
+  /** Un-rounded single-week rent (daily_rent * 7). Prefer `amount_due` for what's actually owed. */
+  period_amount?: number;
+  /** Whole weeks owed, rounded up — rent is billed weekly (CEIL(days_behind / 7)). */
+  overdue_weeks?: number;
+  /** Whole-week-rounded amount owed. Use this instead of `period_amount` / `period_amount - partial_paid`. */
+  amount_due?: number;
+  /** Always null now — there's no more "partial week" concept, just whole weeks owed. */
+  partial_paid?: number | null;
 };
 
 export function getRiders(token: string, params?: { rent?: 'overdue' | 'due_soon'; status?: string }) {
@@ -424,7 +434,7 @@ export async function uploadFile(token: string, asset: UploadAsset, folder: stri
   return data as { key: string };
 }
 
-// ---- Rent ledger (rent_dues based) ----
+// ---- Rent ledger (rent_dues based, rolling paid_through_date balance) ----
 
 export type RentWeek = {
   week_no: number;
@@ -438,23 +448,39 @@ export type RentWeek = {
   vehicle_id: string | null;
 };
 
+export type RiderRentCycle = {
+  weeks: RentWeek[];
+  /** Rolling balance date: the rider's rent is settled up to (and including) this date. */
+  paid_through_date: string | null;
+  /** Daily rent for the rider's active assignment; used for the "N days of rent" preview. */
+  daily_rent: number | null;
+};
+
 export function getRiderRentCycle(token: string, riderId: string) {
-  return apiFetch<{ weeks: RentWeek[] }>(`/api/riders/${riderId}/rent`, { token });
+  return apiFetch<RiderRentCycle>(`/api/riders/${riderId}/rent`, { token });
 }
 
+// Recording a payment of any amount converts it to (amount / daily_rate) days and
+// extends the rider's rolling paid_through_date — there is no "which week is this
+// for" concept anymore, so no period params are sent.
 export type RecordRent = {
   amount: number;
-  period_start: string;
-  period_end: string;
-  vehicle_id?: string | null;
   /** Backend rejects with 400 unless payment_mode AND payment_screenshot_url are present. */
   payment_mode: PaymentMode;
   payment_utr?: string | null;
   payment_screenshot_url: string;
 };
 
+export type RecordRentResponse = {
+  ok: boolean;
+  /** The rider's new rolling paid-through date after this payment. */
+  paid_through_date: string;
+  /** How many days of rent this payment covered (amount ÷ daily_rate, floored). */
+  days_added: number;
+};
+
 export function recordRentReceived(token: string, riderId: string, body: RecordRent) {
-  return apiFetch<{ ok: boolean }>(`/api/riders/${riderId}/rent-received`, { method: 'POST', body, token });
+  return apiFetch<RecordRentResponse>(`/api/riders/${riderId}/rent-received`, { method: 'POST', body, token });
 }
 
 // ---- Rider penalties ----
@@ -500,8 +526,10 @@ export function updateRiderPenalty(token: string, riderId: string, body: UpdateR
 export type RentSummary = {
   expectedToDate: number;
   collected: number;
+  /** Whole-week-rounded total overdue amount across all riders (CEIL'd on the backend). */
   overdue: number;
-  overdueWeeks: number;
+  /** Count of distinct riders currently overdue (was `overdueWeeks` — a summed week count — before the rounding fix; renamed on the backend since it's no longer a week total). */
+  overdueRiders: number;
   pct: number;
 };
 
@@ -514,8 +542,10 @@ export type OverdueRider = {
   rider_code: string;
   name: string;
   mobile: string;
+  /** Whole weeks overdue, rounded up (rent is billed weekly — CEIL(days_behind / 7)). */
   overdue_weeks: number;
-  overdue_amount: number;
+  /** Whole-week-rounded amount owed (overdue_weeks * daily_rent * 7). */
+  overdue_amount: number | null;
 };
 
 export function getOverdueRiders(token: string) {

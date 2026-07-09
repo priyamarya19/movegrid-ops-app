@@ -1,5 +1,5 @@
 import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, Text, View, StyleSheet } from 'react-native';
 
 import { Button } from '@/components/ui/Button';
@@ -9,7 +9,13 @@ import { ImageField } from '@/components/ui/ImageField';
 import { colors, radius, space } from '@/constants/theme';
 import { ApiError, checkBlacklist, createRider, type NewRider } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { digitsOnly, isValidMobile } from '@/lib/validation';
+import {
+  digitsOnly,
+  isValidAadhaar,
+  isValidIFSC,
+  isValidMobile,
+  isValidPAN,
+} from '@/lib/validation';
 
 const EMPTY = {
   name: '',
@@ -48,8 +54,19 @@ export default function NewRiderScreen() {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [blacklist, setBlacklist] = useState<string | null>(null);
+  const [blacklistCheckFailed, setBlacklistCheckFailed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Tracks whether the screen is still mounted, so async handlers don't
+  // setState after the user navigates away mid-request.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const set = (k: keyof FormState, v: string) => setForm((p) => ({ ...p, [k]: v }));
   // Phone fields: keep only digits, capped at 10, so the user can't overtype.
@@ -58,23 +75,33 @@ export default function NewRiderScreen() {
   const mobileValid = isValidMobile(form.mobile);
   const familyRefMobileValid = !form.family_ref_mobile.trim() || isValidMobile(form.family_ref_mobile);
   const localRefMobileValid = !form.local_ref_mobile.trim() || isValidMobile(form.local_ref_mobile);
+  // Optional-field format checks: only flag when the user has typed something.
+  const aadhaarValid = !form.aadhaar.trim() || isValidAadhaar(form.aadhaar);
+  const panValid = !form.pan.trim() || isValidPAN(form.pan);
+  const ifscValid = !form.ifsc.trim() || isValidIFSC(form.ifsc);
 
   const checkAadhaar = async () => {
     const clean = form.aadhaar.replace(/\s/g, '');
+    setBlacklistCheckFailed(false);
     if (!token || clean.length < 12) {
       setBlacklist(null);
       return;
     }
     try {
       const res = await checkBlacklist(token, clean);
+      if (!mounted.current) return;
       setBlacklist(res.blacklisted ? res.reason ?? 'This rider has been blacklisted.' : null);
     } catch {
+      // Don't silently swallow — a failed check must not read as "clean".
+      if (!mounted.current) return;
       setBlacklist(null);
+      setBlacklistCheckFailed(true);
     }
   };
 
-  const page1Valid = form.name.trim() && mobileValid && form.current_address.trim();
-  const page2Valid = familyRefMobileValid && localRefMobileValid;
+  const page1Valid =
+    form.name.trim() && mobileValid && form.current_address.trim() && aadhaarValid && panValid;
+  const page2Valid = familyRefMobileValid && localRefMobileValid && ifscValid;
 
   const nullify = (v: string) => (v.trim() ? v.trim() : null);
 
@@ -111,13 +138,15 @@ export default function NewRiderScreen() {
         local_ref_mobile: nullify(form.local_ref_mobile),
       };
       const res = await createRider(token, body);
+      if (!mounted.current) return;
       Alert.alert('Rider added', `${res.name} created (${res.rider_code}).`, [
         { text: 'OK', onPress: () => router.replace({ pathname: '/rider/[id]', params: { id: res.id } }) },
       ]);
     } catch (e) {
+      if (!mounted.current) return;
       setError(e instanceof Error ? e.message : 'Failed to add rider');
     } finally {
-      setSubmitting(false);
+      if (mounted.current) setSubmitting(false);
     }
   };
 
@@ -159,16 +188,34 @@ export default function NewRiderScreen() {
               keyboardType="number-pad"
               maxLength={14}
               editable={!submitting}
-              tone={blacklist ? 'error' : 'default'}
+              tone={blacklist || !aadhaarValid ? 'error' : 'default'}
+              hint={!aadhaarValid ? 'Aadhaar must be 12 digits' : undefined}
             />
             {blacklist ? (
               <View style={styles.blacklist}>
                 <Text style={styles.blacklistText}>⚠ {blacklist}</Text>
               </View>
             ) : null}
+            {blacklistCheckFailed ? (
+              <View style={styles.blacklistWarn}>
+                <Text style={styles.blacklistWarnText}>
+                  Couldn't verify blacklist status — check the connection and retry before allotting.
+                </Text>
+              </View>
+            ) : null}
             <ImageField label="Aadhaar front" folder="kyc" value={form.aadhaar_front_url} onChange={(k) => set('aadhaar_front_url', k)} />
             <ImageField label="Aadhaar back" folder="kyc" value={form.aadhaar_back_url} onChange={(k) => set('aadhaar_back_url', k)} />
-            <TextField label="PAN number" value={form.pan} onChangeText={(v) => set('pan', v)} placeholder="ABCDE1234F" autoCapitalize="characters" maxLength={10} editable={!submitting} />
+            <TextField
+              label="PAN number"
+              value={form.pan}
+              onChangeText={(v) => set('pan', v)}
+              placeholder="ABCDE1234F"
+              autoCapitalize="characters"
+              maxLength={10}
+              editable={!submitting}
+              tone={!panValid ? 'error' : 'default'}
+              hint={!panValid ? 'Format: ABCDE1234F' : undefined}
+            />
             <ImageField label="PAN card" folder="kyc" value={form.pan_image_url} onChange={(k) => set('pan_image_url', k)} />
             <TextField label="DL number" value={form.dl_number} onChangeText={(v) => set('dl_number', v)} placeholder="DL-XXXXXXXXXX" autoCapitalize="characters" editable={!submitting} />
             <ImageField label="DL front" folder="kyc" value={form.dl_front_url} onChange={(k) => set('dl_front_url', k)} />
@@ -181,7 +228,17 @@ export default function NewRiderScreen() {
             <Text style={styles.section}>Bank details</Text>
             <TextField label="Bank name" value={form.bank} onChangeText={(v) => set('bank', v)} placeholder="SBI / HDFC / etc." editable={!submitting} />
             <TextField label="Account number" value={form.account_number} onChangeText={(v) => set('account_number', v)} placeholder="Account number" keyboardType="number-pad" editable={!submitting} />
-            <TextField label="IFSC code" value={form.ifsc} onChangeText={(v) => set('ifsc', v)} placeholder="SBIN0001234" autoCapitalize="characters" editable={!submitting} />
+            <TextField
+              label="IFSC code"
+              value={form.ifsc}
+              onChangeText={(v) => set('ifsc', v)}
+              placeholder="SBIN0001234"
+              autoCapitalize="characters"
+              maxLength={11}
+              editable={!submitting}
+              tone={!ifscValid ? 'error' : 'default'}
+              hint={!ifscValid ? 'Format: SBIN0001234 (11 chars)' : undefined}
+            />
             <ImageField label="Passbook / cancelled cheque" folder="kyc" value={form.bank_doc_url} onChange={(k) => set('bank_doc_url', k)} />
 
             <Text style={styles.section}>References</Text>
@@ -252,6 +309,16 @@ const styles = StyleSheet.create({
     color: colors.danger,
     fontSize: 13,
     fontWeight: '600',
+  },
+  blacklistWarn: {
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    padding: space(3),
+  },
+  blacklistWarnText: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: '500',
   },
   navRow: {
     flexDirection: 'row',

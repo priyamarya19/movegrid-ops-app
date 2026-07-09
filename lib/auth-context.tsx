@@ -66,16 +66,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    // Idempotent: repeated calls (e.g. a burst of 401s) run the teardown once.
+    // Idempotent within a single burst: concurrent 401s run the teardown once.
     if (signingOut.current) return;
     signingOut.current = true;
-    await Promise.all([
-      SecureStore.deleteItemAsync(TOKEN_KEY),
-      SecureStore.deleteItemAsync(USER_KEY),
-    ]);
-    clearQueryCache();
-    setToken(null);
-    setUser(null);
+    try {
+      await Promise.all([
+        SecureStore.deleteItemAsync(TOKEN_KEY),
+        SecureStore.deleteItemAsync(USER_KEY),
+      ]);
+      clearQueryCache();
+      setToken(null);
+      setUser(null);
+    } finally {
+      // Reset the latch so a later, genuine expiry-logout isn't swallowed as a
+      // no-op. Without this, a forced logout leaves the latch stuck `true`.
+      signingOut.current = false;
+    }
   };
 
   // Register signOut as the global 401 handler so an expired token anywhere in

@@ -1,5 +1,5 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Text, StyleSheet } from 'react-native';
 
 import { Button } from '@/components/ui/Button';
@@ -8,10 +8,10 @@ import { ErrorBanner, FormScreen } from '@/components/ui/FormScreen';
 import { ImageField } from '@/components/ui/ImageField';
 import { SelectField, type SelectOption } from '@/components/ui/SelectField';
 import { colors, space } from '@/constants/theme';
-import { ApiError, createAllotment, getVehicles, lookupRider, type RiderLookup, type Vehicle } from '@/lib/api';
+import { ApiError, createAllotment, getRiders, getVehicles, lookupRider, type Rider, type RiderLookup, type Vehicle } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { vehicleStatusPill } from '@/lib/format';
-import { digitsOnly, isValidMobile } from '@/lib/validation';
+import { isValidMobile } from '@/lib/validation';
 import { useApiQuery } from '@/lib/useApiQuery';
 
 const RIDER_MODES = [
@@ -30,10 +30,29 @@ export default function NewAllotmentScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ mobile?: string }>();
 
-  const [mobile, setMobile] = useState(params.mobile ?? '');
+  const [riderId, setRiderId] = useState<string | null>(null);
   const [rider, setRider] = useState<RiderLookup | null>(null);
   const [riderHint, setRiderHint] = useState<string>();
   const [riderLooking, setRiderLooking] = useState(false);
+
+  // Riders who don't currently hold a vehicle — the only ones allottable.
+  const fetchPendingRiders = useCallback((t: string) => getRiders(t, { status: 'pending' }), []);
+  const { data: pendingRidersData } = useApiQuery<Rider[]>(fetchPendingRiders, [], { cacheKey: 'riders-pending' });
+  const pendingRiders = useMemo(() => pendingRidersData ?? [], [pendingRidersData]);
+  const riderOptions: SelectOption[] = useMemo(() => {
+    const opts = pendingRiders.map((r) => ({
+      value: r.id,
+      label: r.name,
+      sublabel: [r.rider_code, r.mobile].filter(Boolean).join(' · '),
+    }));
+    // Keep a rider resolved via deep-link (e.g. a rider profile's "Allot
+    // vehicle" button, which passes a mobile to pre-lookup) visible even if
+    // they're not in the pending list for some reason.
+    if (rider && !opts.some((o) => o.value === rider.id)) {
+      opts.unshift({ value: rider.id, label: rider.name, sublabel: rider.mobile });
+    }
+    return opts;
+  }, [pendingRiders, rider]);
 
   // Available vehicles for the dropdown (anything not currently assigned).
   const fetchVehicles = useCallback((t: string) => getVehicles(t), []);
@@ -65,10 +84,20 @@ export default function NewAllotmentScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Guards async handlers from setState after the screen unmounts mid-request.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
   const lookupRiderNow = async (value: string) => {
     if (!token || !value.trim()) return;
     if (!isValidMobile(value)) {
       setRider(null);
+      setRiderId(null);
       setRiderHint('Enter exactly 10 digits');
       return;
     }
@@ -77,16 +106,28 @@ export default function NewAllotmentScreen() {
     setRiderHint('Looking up…');
     try {
       const r = await lookupRider(token, value.trim());
+      if (!mounted.current) return;
       setRider(r);
+      setRiderId(r.id);
       setRiderHint(`${r.name}${r.nickname ? ` (${r.nickname})` : ''}`);
       if (r.rental_mode) setRiderMode(r.rental_mode);
       if (r.onboarding_fee != null) setOnboardingFee(String(r.onboarding_fee));
       if (r.security_deposit != null) setDeposit(String(r.security_deposit));
     } catch (e) {
+      if (!mounted.current) return;
+      setRiderId(null);
       setRiderHint(e instanceof ApiError && e.status === 404 ? 'No rider with this mobile' : 'Lookup failed');
     } finally {
-      setRiderLooking(false);
+      if (mounted.current) setRiderLooking(false);
     }
+  };
+
+  // Picking a rider from the dropdown resolves their mobile through the same
+  // lookup as a deep-link, so rental_mode/onboarding_fee/deposit still autofill.
+  const selectRider = (id: string) => {
+    setRiderId(id);
+    const row = pendingRiders.find((r) => r.id === id);
+    if (row) lookupRiderNow(row.mobile);
   };
 
   useEffect(() => {
@@ -113,13 +154,15 @@ export default function NewAllotmentScreen() {
         allotment_pics: pics.filter(Boolean).length ? pics.filter(Boolean) : null,
         assigned_date: assignedDate,
       });
+      if (!mounted.current) return;
       Alert.alert('Allotment created', `${vehicle.ev_number} assigned to ${rider.name}.`, [
         { text: 'OK', onPress: () => router.replace({ pathname: '/rider/[id]', params: { id: rider.id } }) },
       ]);
     } catch (e) {
+      if (!mounted.current) return;
       setError(e instanceof Error ? e.message : 'Failed to create allotment');
     } finally {
-      setSubmitting(false);
+      if (mounted.current) setSubmitting(false);
     }
   };
 
@@ -146,20 +189,18 @@ export default function NewAllotmentScreen() {
         />
 
         <Text style={styles.section}>Rider</Text>
-        <TextField
-          label="Rider mobile"
+        <SelectField
+          label="Rider"
           required
-          value={mobile}
-          onChangeText={(v) => setMobile(digitsOnly(v).slice(0, 10))}
-          onEndEditing={() => lookupRiderNow(mobile)}
-          placeholder="10-digit mobile"
-          keyboardType="phone-pad"
-          maxLength={10}
-          returnKeyType="search"
-          editable={!submitting}
-          hint={riderHint}
-          tone={rider ? 'success' : riderHint && !riderLooking ? 'error' : 'default'}
+          placeholder={pendingRiders.length ? 'Select a rider' : 'No riders available'}
+          value={riderId}
+          options={riderOptions}
+          onSelect={selectRider}
+          emptyText="No riders without a vehicle to allot."
         />
+        {riderLooking || (riderHint && !rider) ? (
+          <Text style={[styles.riderHint, !riderLooking && styles.riderHintError]}>{riderHint}</Text>
+        ) : null}
 
         <Text style={styles.section}>Allotment terms</Text>
         <ChipSelect label="Rider mode" options={RIDER_MODES} value={riderMode} onChange={setRiderMode} />
@@ -217,4 +258,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     marginTop: space(2),
   },
+  riderHint: { color: colors.textFaint, fontSize: 12, marginTop: -space(1) },
+  riderHintError: { color: colors.danger },
 });

@@ -43,11 +43,10 @@ export default function MoreScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      {/* User card → Settings */}
+      {/* Purely a visual header now — "Settings" below is the only way to
+          reach the settings screen, so this isn't a second tappable entry point. */}
       {user ? (
-        <Pressable
-          style={({ pressed }) => [styles.userCard, pressed && styles.rowPressed]}
-          onPress={() => router.push('/settings')}>
+        <View style={styles.userCard}>
           <View style={styles.userAvatar}>
             <Text style={styles.userAvatarText}>{user.name?.charAt(0)?.toUpperCase() ?? '?'}</Text>
           </View>
@@ -55,8 +54,7 @@ export default function MoreScreen() {
             <Text style={styles.userName}>{user.name}</Text>
             <Text style={styles.userRole}>{roleLabel(user.role)}</Text>
           </View>
-          <FontAwesome name="angle-right" size={18} color={colors.textFaint} />
-        </Pressable>
+        </View>
       ) : null}
 
       <View style={styles.group}>
