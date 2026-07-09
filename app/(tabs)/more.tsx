@@ -1,4 +1,5 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import Constants from 'expo-constants';
 import { useRouter, type Href } from 'expo-router';
 import { Alert, Pressable, ScrollView, Text, View, StyleSheet } from 'react-native';
 
@@ -77,7 +78,15 @@ export default function MoreScreen() {
         <Text style={styles.signOutText}>Sign out</Text>
       </Pressable>
 
-      <Text style={styles.version}>MoveGrid Ops · v1.0.0</Text>
+      <View style={styles.footer}>
+        <Text style={styles.version}>
+          MoveGrid Ops · v{Constants.expoConfig?.version ?? '1.0.0'}
+        </Text>
+        <Text style={styles.copyright}>
+          Developed with <Text style={styles.heart}>❤</Text> · © {new Date().getFullYear()} MoveGrid
+          Technologies Pvt Ltd
+        </Text>
+      </View>
     </ScrollView>
   );
 }
@@ -144,5 +153,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   signOutText: { color: colors.danger, fontSize: 15, fontWeight: '600' },
+  footer: { alignItems: 'center', gap: 4 },
   version: { color: colors.textFaint, fontSize: 12, textAlign: 'center' },
+  copyright: { color: colors.textFaint, fontSize: 11, textAlign: 'center' },
+  heart: { color: colors.danger },
 });
