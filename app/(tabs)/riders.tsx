@@ -146,6 +146,10 @@ export default function RidersScreen() {
         ListEmptyComponent={<EmptyState icon="users" message="No riders match." />}
         renderItem={({ item }) => {
           const overdue = overdueById.get(item.id);
+          // On the Due tab, surface the upcoming weekly due (next_due_date) that
+          // put this rider here — not the monthly rent_received_this_month flag,
+          // which can be true even while next week's rent is unpaid.
+          const dueSoon = filter === 'due' ? dueSoonById.get(item.id) : undefined;
           const pill = overdue ? { label: 'Overdue', tone: 'danger' as const } : riderStatusPill(item.status);
           return (
             <Pressable
@@ -165,6 +169,13 @@ export default function RidersScreen() {
                     <FontAwesome name="exclamation-triangle" size={11} color={colors.danger} />
                     <Text style={styles.overdueText}>
                       {overdue.overdue_weeks} wk overdue · {formatINR(overdue.overdue_amount)}
+                    </Text>
+                  </View>
+                ) : dueSoon ? (
+                  <View style={styles.subRow}>
+                    <FontAwesome name="clock-o" size={11} color={colors.warning} />
+                    <Text style={styles.subText}>
+                      Rent due{dueSoon.next_due_date ? ` · ${formatDate(dueSoon.next_due_date)}` : ''}
                     </Text>
                   </View>
                 ) : item.has_active_assignment === true ? (
