@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
+import * as Updates from 'expo-updates';
 
 // Side-effect import: starts the on-device network logger before any API call
 // fires, so it captures all requests (and failures) in Expo Go and the APK.
@@ -42,6 +43,24 @@ const MoveGridTheme: Theme = {
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
+// Expo's default update check is fire-and-forget: it downloads in the background
+// but only takes effect on the *next* cold start, so a fix can silently sit
+// undelivered indefinitely if the app isn't reopened at just the right moment.
+// Explicitly await the check+download here and reload immediately once fetched,
+// so a fresh install of the app always ends up on the latest published update
+// in this same session instead of depending on a reopen ritual.
+async function applyPendingUpdate() {
+  if (__DEV__) return;
+  try {
+    const result = await Updates.checkForUpdateAsync();
+    if (!result.isAvailable) return;
+    await Updates.fetchUpdateAsync();
+    await Updates.reloadAsync();
+  } catch {
+    // No network, no update service, etc. — just keep running on the current bundle.
+  }
+}
+
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
@@ -51,6 +70,10 @@ export default function RootLayout() {
   useEffect(() => {
     if (error) throw error;
   }, [error]);
+
+  useEffect(() => {
+    applyPendingUpdate();
+  }, []);
 
   if (!loaded) {
     return null;
