@@ -1,11 +1,22 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import Constants from 'expo-constants';
-import { useRouter, type Href } from 'expo-router';
+import { useFocusEffect, useRouter, type Href } from 'expo-router';
+import * as Updates from 'expo-updates';
+import { useCallback, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View, StyleSheet } from 'react-native';
 
 import { colors, radius, space } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
 import { roleLabel } from '@/lib/roles';
+import { getUpdateStatus, type UpdateStatus } from '@/lib/update-status';
+
+const PHASE_LABEL: Record<UpdateStatus['phase'], string> = {
+  dev_skip: 'dev build — updates disabled',
+  no_update: 'up to date',
+  downloading: 'update found, downloading…',
+  reloading: 'update downloaded, restarting…',
+  error: 'check failed',
+};
 
 type Item = {
   icon: React.ComponentProps<typeof FontAwesome>['name'];
@@ -32,6 +43,15 @@ const SECTIONS: Item[] = [
 export default function MoreScreen() {
   const { user, signOut } = useAuth();
   const router = useRouter();
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
+
+  // Refresh on every visit to this tab (not just mount), so navigating away and
+  // back shows a check that finished after the screen first loaded.
+  useFocusEffect(
+    useCallback(() => {
+      getUpdateStatus().then(setUpdateStatus);
+    }, [])
+  );
 
   const sections = SECTIONS.filter((s) => s.roles.includes(user?.role ?? ''));
 
@@ -81,6 +101,14 @@ export default function MoreScreen() {
       <View style={styles.footer}>
         <Text style={styles.version}>
           v{Constants.expoConfig?.version ?? '1.0.0'}
+        </Text>
+        <Text style={styles.updateInfo}>
+          {Updates.channel ?? 'embedded'} · {Updates.updateId ? Updates.updateId.slice(0, 8) : 'no update applied'}
+        </Text>
+        <Text style={styles.updateInfo}>
+          {updateStatus
+            ? `Last check: ${PHASE_LABEL[updateStatus.phase]} (${new Date(updateStatus.checkedAt).toLocaleTimeString()})`
+            : 'Last check: —'}
         </Text>
         <Text style={styles.copyright}>
           Developed with <Text style={styles.heart}>❤</Text> · © {new Date().getFullYear()} MoveGrid
@@ -155,6 +183,7 @@ const styles = StyleSheet.create({
   signOutText: { color: colors.danger, fontSize: 15, fontWeight: '600' },
   footer: { alignItems: 'center', gap: 4 },
   version: { color: colors.textFaint, fontSize: 12, textAlign: 'center' },
+  updateInfo: { color: colors.textFaint, fontSize: 10, textAlign: 'center' },
   copyright: { color: colors.textFaint, fontSize: 11, textAlign: 'center' },
   heart: { color: colors.danger },
 });

@@ -17,6 +17,7 @@ import { ToastProvider } from '@/components/ui/Toast';
 import { colors } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { useShake } from '@/lib/useShake';
+import { recordUpdateStatus } from '@/lib/update-status';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -50,14 +51,23 @@ SplashScreen.preventAutoHideAsync();
 // so a fresh install of the app always ends up on the latest published update
 // in this same session instead of depending on a reopen ritual.
 async function applyPendingUpdate() {
-  if (__DEV__) return;
+  if (__DEV__) {
+    await recordUpdateStatus({ checkedAt: new Date().toISOString(), phase: 'dev_skip' });
+    return;
+  }
   try {
     const result = await Updates.checkForUpdateAsync();
-    if (!result.isAvailable) return;
+    if (!result.isAvailable) {
+      await recordUpdateStatus({ checkedAt: new Date().toISOString(), phase: 'no_update' });
+      return;
+    }
+    await recordUpdateStatus({ checkedAt: new Date().toISOString(), phase: 'downloading' });
     await Updates.fetchUpdateAsync();
+    await recordUpdateStatus({ checkedAt: new Date().toISOString(), phase: 'reloading' });
     await Updates.reloadAsync();
-  } catch {
+  } catch (e) {
     // No network, no update service, etc. — just keep running on the current bundle.
+    await recordUpdateStatus({ checkedAt: new Date().toISOString(), phase: 'error', detail: String(e) });
   }
 }
 
