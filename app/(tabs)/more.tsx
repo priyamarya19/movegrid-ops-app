@@ -80,7 +80,7 @@ export default function MoreScreen() {
 
       <View style={styles.footer}>
         <Text style={styles.version}>
-          MoveGrid Ops · v{Constants.expoConfig?.version ?? '1.0.0'}
+          v{Constants.expoConfig?.version ?? '1.0.0'}
         </Text>
         <Text style={styles.copyright}>
           Developed with <Text style={styles.heart}>❤</Text> · © {new Date().getFullYear()} MoveGrid
