@@ -147,8 +147,8 @@ export default function RidersScreen() {
         renderItem={({ item }) => {
           const overdue = overdueById.get(item.id);
           // On the Due tab, surface the upcoming weekly due (next_due_date) that
-          // put this rider here — not the monthly rent_received_this_month flag,
-          // which can be true even while next week's rent is unpaid.
+          // put this rider here — rent_paid_this_week only reflects today, not the
+          // specific upcoming week that triggered this filter.
           const dueSoon = filter === 'due' ? dueSoonById.get(item.id) : undefined;
           const pill = overdue ? { label: 'Overdue', tone: 'danger' as const } : riderStatusPill(item.status);
           return (
@@ -181,12 +181,12 @@ export default function RidersScreen() {
                 ) : item.has_active_assignment === true ? (
                   <View style={styles.subRow}>
                     <FontAwesome
-                      name={item.rent_received_this_month ? 'check-circle' : 'clock-o'}
+                      name={item.rent_paid_this_week ? 'check-circle' : 'clock-o'}
                       size={11}
-                      color={item.rent_received_this_month ? colors.accent : colors.warning}
+                      color={item.rent_paid_this_week ? colors.accent : colors.warning}
                     />
                     <Text style={styles.subText}>
-                      {item.rent_received_this_month ? 'Rent paid this month' : 'Rent due'}
+                      {item.rent_paid_this_week ? 'Rent paid this week' : 'Rent due'}
                     </Text>
                   </View>
                 ) : null}

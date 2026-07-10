@@ -141,7 +141,7 @@ export type Rider = {
   status: string;
   hub_name: string | null;
   vehicle_number: string | null;
-  rent_received_this_month: boolean;
+  rent_paid_this_week: boolean;
   has_active_assignment?: boolean;
   // The following are only present when queried with ?rent=overdue|due_soon.
   next_due_date?: string;
