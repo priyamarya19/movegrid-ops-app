@@ -94,6 +94,11 @@ function RiderBody({ data, refreshing, onRefresh }: { data: RiderDetail; refresh
                 value: [activeAssignment.oem, activeAssignment.model_name].filter(Boolean).join(' ') || '—',
               },
               { label: 'Assigned on', value: formatDate(activeAssignment.assigned_date) },
+              // Per-tenancy allotment ID (matches the rent sheet's "User ID" column) —
+              // only rendered once the API returns it.
+              ...(activeAssignment.allotment_code
+                ? [{ label: 'Allotment ID', value: activeAssignment.allotment_code }]
+                : []),
             ]}
           />
         ) : (

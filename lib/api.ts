@@ -208,6 +208,12 @@ export type RiderDetail = {
     vehicle_status: string;
     model_name: string | null;
     oem: string | null;
+    /**
+     * Allotment ID (`MG000001`-style, matches the ops rent sheet's "User ID" column).
+     * One per tenancy — distinct from the rider's permanent `rider_code` (`MGR…`).
+     * Optional: only present once the dashboard adds rva.allotment_code to this endpoint.
+     */
+    allotment_code?: string | null;
   }[];
   totalCollected: number;
 };
@@ -240,6 +246,8 @@ export type VehicleDetail = {
     rider_name: string;
     rider_id: string;
     rider_mobile: string | null;
+    /** Allotment ID (`MG…` per-tenancy code). Optional until the dashboard endpoint selects it. */
+    allotment_code?: string | null;
   }[];
   payouts: { amount: number | string; due_date: string; paid_date: string | null; status: string }[];
 };
@@ -309,6 +317,8 @@ export type ActiveAssignment = {
   rider_name: string;
   rider_id: string;
   ev_number: string;
+  /** Allotment ID (`MG…` per-tenancy code). Optional until the dashboard endpoint selects it. */
+  allotment_code?: string | null;
 };
 
 export function getActiveAssignment(token: string, vehicleId: string) {

@@ -101,7 +101,10 @@ export default function ReturnVehicleScreen() {
       const a = await getActiveAssignment(token, id);
       if (!mounted.current) return;
       setAssignment(a);
-      setEvHint(`Active allotment — ${a.rider_name} · since ${formatDate(a.assigned_date)}`);
+      // Include the per-tenancy allotment ID (rent-sheet "User ID" code) when the API returns it.
+      setEvHint(
+        `Active allotment${a.allotment_code ? ` ${a.allotment_code}` : ''} — ${a.rider_name} · since ${formatDate(a.assigned_date)}`
+      );
     } catch (e) {
       if (!mounted.current) return;
       setEvHint(e instanceof ApiError && e.status === 404 ? 'No active allotment for this vehicle' : 'Lookup failed');

@@ -91,6 +91,8 @@ function VehicleBody({ data, refreshing, onRefresh }: { data: VehicleDetail; ref
                     {formatDate(a.assigned_date)}
                     {a.returned_date ? ` → ${formatDate(a.returned_date)}` : ''}
                   </Text>
+                  {/* Per-tenancy allotment ID — shown once the API returns it. */}
+                  {a.allotment_code ? <Text style={styles.rowMeta}>Allotment ID: {a.allotment_code}</Text> : null}
                 </View>
                 <StatusPill
                   label={a.status === 'active' ? 'Active' : 'Returned'}
