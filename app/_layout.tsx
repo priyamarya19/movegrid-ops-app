@@ -154,6 +154,7 @@ function RootNavigator() {
       <Stack.Screen name="allotment/new" options={{ headerShown: true }} />
       <Stack.Screen name="allotment/return" options={{ headerShown: true }} />
       <Stack.Screen name="rent-collect" options={{ headerShown: true }} />
+      <Stack.Screen name="rent-waivers" options={{ headerShown: true }} />
       <Stack.Screen name="hubs" options={{ headerShown: true }} />
       <Stack.Screen name="leads" options={{ headerShown: true }} />
       <Stack.Screen name="forms" options={{ headerShown: true }} />

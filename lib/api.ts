@@ -624,6 +624,36 @@ export function changePassword(token: string, currentPassword: string, newPasswo
   });
 }
 
+// ---- Rent waiver approvals ----
+//
+// Approving a non_functional_days credit (captured at return time on an
+// issue-swap) is gated behind a per-user permission (can_approve_rent_waivers)
+// that's independent of role, so there's no client-side role check — GET
+// doubles as the "am I authorized" probe. A non-ok response (403 for
+// unauthorized users) means: show nothing. See dashboard
+// app/api/rent-waivers/route.ts + [id]/route.ts for the reference contract.
+
+export type RentWaiverRequest = {
+  id: string;
+  rider_id: string;
+  rider_name: string;
+  rider_code: string;
+  /** May be absent for very old/malformed rows; render as '—'. */
+  ev_number: string | null;
+  non_functional_days: number;
+  requested_by: string | null;
+  requested_at: string;
+};
+
+/** Always the pending queue — the endpoint doesn't support filtering by status. */
+export function getRentWaivers(token: string) {
+  return apiFetch<RentWaiverRequest[]>('/api/rent-waivers', { token });
+}
+
+export function actOnRentWaiver(token: string, id: string, action: 'approve' | 'reject') {
+  return apiFetch<{ ok: boolean }>(`/api/rent-waivers/${id}`, { method: 'PATCH', body: { action }, token });
+}
+
 // ---- Leads ----
 
 export type Lead = {

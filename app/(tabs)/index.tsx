@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import { Image, Pressable, RefreshControl, ScrollView, Text, View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { RentWaiverBanner } from '@/components/RentWaiverBanner';
 import { Card } from '@/components/ui/Card';
 import { ErrorState, LoadingState } from '@/components/ui/QueryStates';
 import { StatCard } from '@/components/ui/StatCard';
@@ -76,6 +77,11 @@ export default function HomeScreen() {
           </Text>
           <Text style={styles.subtitle}>Here's your fleet at a glance</Text>
         </View>
+
+        {/* Self-detecting: renders nothing unless this user can approve rent
+            waivers AND there are pending requests. Independent of the dashboard
+            data load below. */}
+        <RentWaiverBanner />
 
         {loading ? (
           <LoadingState />
