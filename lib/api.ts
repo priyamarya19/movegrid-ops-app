@@ -338,6 +338,10 @@ export function createAllotment(token: string, body: NewAllotment) {
 export type ReturnPayload = {
   returned_date?: string | null;
   rent_cleared?: boolean | null;
+  /** Vehicle was non-functional and rider is being immediately reallotted a replacement. */
+  is_issue_swap?: boolean;
+  /** Days the vehicle was down; credited to the rider on the new assignment. 0 when is_issue_swap is false. */
+  non_functional_days?: number;
   penalty_amount?: number | null;
   /** Free-text penalty note. If present (or penalty_amount), backend creates a rider_penalties row. */
   penalty_detail?: string | null;

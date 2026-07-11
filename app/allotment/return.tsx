@@ -25,6 +25,11 @@ const RENT_CLEARED = [
   { label: 'No — pending', value: 'no' },
 ];
 
+const ISSUE_SWAP = [
+  { label: 'Yes', value: 'yes' },
+  { label: 'No', value: 'no' },
+];
+
 const CONDITIONS = [
   'Same as allotted',
   'Motor damaged',
@@ -64,6 +69,8 @@ export default function ReturnVehicleScreen() {
 
   const [returnedDate, setReturnedDate] = useState(today());
   const [rentCleared, setRentCleared] = useState<string | null>(null);
+  const [issueSwap, setIssueSwap] = useState<string | null>(null);
+  const [nonFunctionalDays, setNonFunctionalDays] = useState('');
   const [penalty, setPenalty] = useState('');
   const [penaltyDetail, setPenaltyDetail] = useState('');
   const [settlement, setSettlement] = useState<PaymentProofValue>(emptyPaymentProof);
@@ -114,18 +121,22 @@ export default function ReturnVehicleScreen() {
     });
 
   const rentSettled = rentCleared === 'yes';
+  const isIssueSwap = issueSwap === 'yes';
   // A penalty row needs BOTH an amount and a detail, or neither. One alone
   // produces a malformed row server-side.
   const penaltyAmt = penalty.trim();
   const penaltyDet = penaltyDetail.trim();
   const penaltyAmtInvalid = penaltyAmt.length > 0 && !(Number(penaltyAmt) > 0);
   const penaltyHalfFilled = (penaltyAmt.length > 0) !== (penaltyDet.length > 0);
+  const nonFunctionalDaysTrim = nonFunctionalDays.trim();
+  const nonFunctionalDaysInvalid = isIssueSwap && !(Number(nonFunctionalDaysTrim) >= 0 && nonFunctionalDaysTrim.length > 0);
   const canSubmit =
     !!assignment &&
     !!rentCleared &&
     (!rentSettled || isPaymentProofComplete(settlement)) &&
     !penaltyHalfFilled &&
     !penaltyAmtInvalid &&
+    !nonFunctionalDaysInvalid &&
     !submitting;
 
   const onSubmit = async () => {
@@ -138,12 +149,18 @@ export default function ReturnVehicleScreen() {
       setError('Penalty amount must be a positive number.');
       return;
     }
+    if (nonFunctionalDaysInvalid) {
+      setError('Enter the number of non-functional days.');
+      return;
+    }
     setError(null);
     setSubmitting(true);
     try {
       await returnAllotment(token, assignment.id, {
         returned_date: returnedDate,
         rent_cleared: rentCleared ? rentCleared === 'yes' : null,
+        is_issue_swap: isIssueSwap,
+        non_functional_days: isIssueSwap && nonFunctionalDaysTrim ? Number(nonFunctionalDaysTrim) : 0,
         penalty_amount: penalty.trim() ? Number(penalty) : null,
         penalty_detail: penaltyDetail.trim() || null,
         condition_on_return: conditions.length ? conditions : null,
@@ -190,6 +207,32 @@ export default function ReturnVehicleScreen() {
         <ChipSelect label="All rent paid?" options={RENT_CLEARED} value={rentCleared} onChange={setRentCleared} />
         {rentSettled ? (
           <PaymentProof value={settlement} onChange={setSettlement} folder="returns" label="Settlement mode" />
+        ) : null}
+        <ChipSelect
+          label="Vehicle non-functional — rider is being immediately reallotted a replacement?"
+          options={ISSUE_SWAP}
+          value={issueSwap}
+          onChange={setIssueSwap}
+        />
+        <Text style={styles.fieldHint}>
+          Keeps the rider&apos;s rent cycle going on the new vehicle instead of restarting — no lost paid rent, no charge for down days.
+        </Text>
+        {isIssueSwap ? (
+          <TextField
+            label="Non-functional days"
+            required
+            value={nonFunctionalDays}
+            onChangeText={setNonFunctionalDays}
+            placeholder="0"
+            keyboardType="numeric"
+            editable={!submitting}
+            tone={nonFunctionalDaysInvalid ? 'error' : 'default'}
+            hint={
+              nonFunctionalDaysInvalid
+                ? 'Enter the number of days the vehicle was down'
+                : "Credited to the rider — subtracted from what they owe on the new vehicle"
+            }
+          />
         ) : null}
         <TextField
           label="Penalty amount (₹)"
@@ -252,4 +295,5 @@ const styles = StyleSheet.create({
     marginTop: space(2),
   },
   evHint: { fontSize: 12, marginTop: -space(1) },
+  fieldHint: { fontSize: 12, color: colors.textFaint, marginTop: -space(1) },
 });
