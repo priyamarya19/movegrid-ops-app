@@ -8,6 +8,9 @@
       "developmentClient": true,
       "distribution": "internal",
       "channel": "development",
+      "env": {
+        "APP_ENV": "development"
+      },
       "android": {
         "buildType": "apk"
       }
@@ -16,6 +19,7 @@
       "distribution": "internal",
       "channel": "preview",
       "env": {
+        "APP_ENV": "uat",
         "EXPO_PUBLIC_API_URL": "https://dash-uat.movegrid.in"
       },
       "android": {
@@ -26,6 +30,7 @@
       "autoIncrement": true,
       "channel": "production",
       "env": {
+        "APP_ENV": "production",
         "EXPO_PUBLIC_API_URL": "https://dash.movegrid.in"
       },
       "android": {
