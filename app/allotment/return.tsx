@@ -15,10 +15,11 @@ import {
 } from '@/components/ui/PaymentProof';
 import { SelectField, type SelectOption } from '@/components/ui/SelectField';
 import { colors, space } from '@/constants/theme';
-import { ApiError, getActiveAssignment, getVehicles, returnAllotment, type ActiveAssignment, type Vehicle } from '@/lib/api';
+import { ApiError, getActiveAssignment, getVehicles, returnAllotment, type ActiveAssignment, type ReturnPayload, type Vehicle } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate } from '@/lib/format';
 import { useIdempotencyKey } from '@/lib/idempotency';
+import { submitOrQueue } from '@/lib/outbox';
 import { useApiQuery } from '@/lib/useApiQuery';
 
 const RENT_CLEARED = [
@@ -160,29 +161,34 @@ export default function ReturnVehicleScreen() {
     }
     setError(null);
     setSubmitting(true);
+    const body: ReturnPayload = {
+      returned_date: returnedDate,
+      rent_cleared: rentCleared ? rentCleared === 'yes' : null,
+      is_issue_swap: isIssueSwap,
+      non_functional_days: isIssueSwap && nonFunctionalDaysTrim ? Number(nonFunctionalDaysTrim) : 0,
+      penalty_amount: penalty.trim() ? Number(penalty) : null,
+      penalty_detail: penaltyDetail.trim() || null,
+      condition_on_return: conditions.length ? conditions : null,
+      return_photos: photos.filter(Boolean).length ? photos.filter(Boolean) : null,
+      return_remarks: remarks.trim() || null,
+      rent_settlement_mode: rentSettled ? settlement.mode : null,
+      rent_settlement_utr: rentSettled && isOnlineMode(settlement.mode) ? settlement.utr.trim() || null : null,
+      rent_settlement_proof_url: rentSettled ? settlement.proofKey : null,
+    };
     try {
-      await returnAllotment(
-        token,
-        assignment.id,
-        {
-          returned_date: returnedDate,
-          rent_cleared: rentCleared ? rentCleared === 'yes' : null,
-          is_issue_swap: isIssueSwap,
-          non_functional_days: isIssueSwap && nonFunctionalDaysTrim ? Number(nonFunctionalDaysTrim) : 0,
-          penalty_amount: penalty.trim() ? Number(penalty) : null,
-          penalty_detail: penaltyDetail.trim() || null,
-          condition_on_return: conditions.length ? conditions : null,
-          return_photos: photos.filter(Boolean).length ? photos.filter(Boolean) : null,
-          return_remarks: remarks.trim() || null,
-          rent_settlement_mode: rentSettled ? settlement.mode : null,
-          rent_settlement_utr: rentSettled && isOnlineMode(settlement.mode) ? settlement.utr.trim() || null : null,
-          rent_settlement_proof_url: rentSettled ? settlement.proofKey : null,
-        },
-        idem.current()
-      );
+      const outcome = await submitOrQueue({
+        idempotencyKey: idem.current(),
+        label: `Return · ${assignment.ev_number}`,
+        job: { kind: 'returnAllotment', assignmentId: assignment.id, body },
+        attempt: (key) => returnAllotment(token, assignment.id, body, key),
+      });
       idem.reset();
       if (!mounted.current) return;
-      Alert.alert('Vehicle returned', `${assignment.ev_number} marked as returned.`, [
+      const message =
+        outcome.status === 'sent'
+          ? `${assignment.ev_number} marked as returned.`
+          : `No connection — the return for ${assignment.ev_number} is saved and will sync when back online.`;
+      Alert.alert(outcome.status === 'sent' ? 'Vehicle returned' : 'Saved offline', message, [
         { text: 'OK', onPress: () => router.replace('/(tabs)/vehicles') },
       ]);
     } catch (e) {

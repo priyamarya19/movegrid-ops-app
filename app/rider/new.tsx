@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, Text, View, StyleSheet } from 'react-native';
 
 import { Button } from '@/components/ui/Button';
+import { DraftBanner } from '@/components/ui/DraftBanner';
 import { TextField } from '@/components/ui/Form';
 import { ErrorBanner, FormScreen } from '@/components/ui/FormScreen';
 import { ImageField } from '@/components/ui/ImageField';
@@ -10,6 +11,8 @@ import { colors, radius, space } from '@/constants/theme';
 import { ApiError, checkBlacklist, createRider, type NewRider } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useIdempotencyKey } from '@/lib/idempotency';
+import { submitOrQueue } from '@/lib/outbox';
+import { useFormDraft } from '@/lib/useFormDraft';
 import {
   digitsOnly,
   isValidAadhaar,
@@ -70,6 +73,17 @@ export default function NewRiderScreen() {
     };
   }, []);
 
+  // Auto-save the (25-field) form so a crash / back-swipe / OTA reload doesn't
+  // wipe an in-progress onboarding. Already-uploaded photo S3 keys live in
+  // `form`, so they survive the restore too. Paused while submitting.
+  const draft = useFormDraft<FormState>({
+    storageKey: 'rider-new',
+    value: form,
+    onRestore: setForm,
+    isDirty: (v) => JSON.stringify(v) !== JSON.stringify(EMPTY),
+    enabled: !submitting,
+  });
+
   const set = (k: keyof FormState, v: string) => setForm((p) => ({ ...p, [k]: v }));
   // Phone fields: keep only digits, capped at 10, so the user can't overtype.
   const setPhone = (k: keyof FormState, v: string) => set(k, digitsOnly(v).slice(0, 10));
@@ -111,40 +125,55 @@ export default function NewRiderScreen() {
     if (!token) return;
     setError(null);
     setSubmitting(true);
+    const body: NewRider = {
+      name: form.name.trim(),
+      mobile: form.mobile.trim(),
+      nickname: nullify(form.nickname),
+      current_address: nullify(form.current_address),
+      permanent_address: nullify(form.permanent_address),
+      address_map_link: nullify(form.address_map_link),
+      profile_photo_url: nullify(form.profile_photo_url),
+      aadhaar: nullify(form.aadhaar),
+      aadhaar_front_url: nullify(form.aadhaar_front_url),
+      aadhaar_back_url: nullify(form.aadhaar_back_url),
+      pan: nullify(form.pan),
+      pan_image_url: nullify(form.pan_image_url),
+      dl_number: nullify(form.dl_number),
+      dl_front_url: nullify(form.dl_front_url),
+      dl_back_url: nullify(form.dl_back_url),
+      bank: nullify(form.bank),
+      ifsc: nullify(form.ifsc),
+      account_number: nullify(form.account_number),
+      bank_doc_url: nullify(form.bank_doc_url),
+      family_ref_name: nullify(form.family_ref_name),
+      family_ref_mobile: nullify(form.family_ref_mobile),
+      family_ref_aadhaar: nullify(form.family_ref_aadhaar),
+      family_ref_aadhaar_url: nullify(form.family_ref_aadhaar_url),
+      local_ref_name: nullify(form.local_ref_name),
+      local_ref_mobile: nullify(form.local_ref_mobile),
+    };
     try {
-      const body: NewRider = {
-        name: form.name.trim(),
-        mobile: form.mobile.trim(),
-        nickname: nullify(form.nickname),
-        current_address: nullify(form.current_address),
-        permanent_address: nullify(form.permanent_address),
-        address_map_link: nullify(form.address_map_link),
-        profile_photo_url: nullify(form.profile_photo_url),
-        aadhaar: nullify(form.aadhaar),
-        aadhaar_front_url: nullify(form.aadhaar_front_url),
-        aadhaar_back_url: nullify(form.aadhaar_back_url),
-        pan: nullify(form.pan),
-        pan_image_url: nullify(form.pan_image_url),
-        dl_number: nullify(form.dl_number),
-        dl_front_url: nullify(form.dl_front_url),
-        dl_back_url: nullify(form.dl_back_url),
-        bank: nullify(form.bank),
-        ifsc: nullify(form.ifsc),
-        account_number: nullify(form.account_number),
-        bank_doc_url: nullify(form.bank_doc_url),
-        family_ref_name: nullify(form.family_ref_name),
-        family_ref_mobile: nullify(form.family_ref_mobile),
-        family_ref_aadhaar: nullify(form.family_ref_aadhaar),
-        family_ref_aadhaar_url: nullify(form.family_ref_aadhaar_url),
-        local_ref_name: nullify(form.local_ref_name),
-        local_ref_mobile: nullify(form.local_ref_mobile),
-      };
-      const res = await createRider(token, body, idem.current());
+      const outcome = await submitOrQueue({
+        idempotencyKey: idem.current(),
+        label: `Rider · ${form.name.trim() || form.mobile.trim()}`,
+        job: { kind: 'createRider', body },
+        attempt: (key) => createRider(token, body, key),
+      });
       idem.reset();
+      await draft.clear();
       if (!mounted.current) return;
-      Alert.alert('Rider added', `${res.name} created (${res.rider_code}).`, [
-        { text: 'OK', onPress: () => router.replace({ pathname: '/rider/[id]', params: { id: res.id } }) },
-      ]);
+      if (outcome.status === 'sent') {
+        const res = outcome.result;
+        Alert.alert('Rider added', `${res.name} created (${res.rider_code}).`, [
+          { text: 'OK', onPress: () => router.replace({ pathname: '/rider/[id]', params: { id: res.id } }) },
+        ]);
+      } else {
+        Alert.alert(
+          'Saved offline',
+          'No connection — this rider will be created automatically when the connection returns.',
+          [{ text: 'OK', onPress: () => router.back() }]
+        );
+      }
     } catch (e) {
       if (!mounted.current) return;
       setError(e instanceof Error ? e.message : 'Failed to add rider');
@@ -157,6 +186,13 @@ export default function NewRiderScreen() {
     <>
       <Stack.Screen options={{ title: 'Add rider' }} />
       <FormScreen>
+        {draft.status === 'available' ? (
+          <DraftBanner
+            message="You have an unsaved rider entry."
+            onRestore={draft.restore}
+            onDiscard={draft.discard}
+          />
+        ) : null}
         <Text style={styles.stepLabel}>Step {step + 1} of 2</Text>
 
         {step === 0 ? (

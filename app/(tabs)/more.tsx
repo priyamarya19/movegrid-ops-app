@@ -9,12 +9,14 @@ import { colors, radius, space } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
 import { roleLabel } from '@/lib/roles';
 import { getUpdateStatus, type UpdateStatus } from '@/lib/update-status';
+import { useOutbox } from '@/lib/useOutbox';
 
 const PHASE_LABEL: Record<UpdateStatus['phase'], string> = {
   dev_skip: 'dev build — updates disabled',
   no_update: 'up to date',
   downloading: 'update found, downloading…',
   reloading: 'update downloaded, restarting…',
+  downloaded_deferred: 'update ready — applies on next open',
   error: 'check failed',
 };
 
@@ -43,6 +45,7 @@ const SECTIONS: Item[] = [
 export default function MoreScreen() {
   const { user, signOut } = useAuth();
   const router = useRouter();
+  const { count: pendingSync } = useOutbox();
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
 
   // Refresh on every visit to this tab (not just mount), so navigating away and
@@ -76,6 +79,23 @@ export default function MoreScreen() {
             <Text style={styles.userRole}>{roleLabel(user.role)}</Text>
           </View>
         </View>
+      ) : null}
+
+      {pendingSync > 0 ? (
+        <Pressable
+          style={({ pressed }) => [styles.syncCard, pressed && styles.rowPressed]}
+          onPress={() => router.push('/outbox')}>
+          <View style={styles.syncIcon}>
+            <FontAwesome name="cloud-upload" size={16} color={colors.warning} />
+          </View>
+          <View style={styles.syncMain}>
+            <Text style={styles.syncTitle}>
+              {pendingSync} pending sync
+            </Text>
+            <Text style={styles.syncSub}>Saved on this phone · tap to review</Text>
+          </View>
+          <FontAwesome name="angle-right" size={18} color={colors.textFaint} />
+        </Pressable>
       ) : null}
 
       <View style={styles.group}>
@@ -160,6 +180,27 @@ const styles = StyleSheet.create({
   },
   rowBorder: { borderTopWidth: 1, borderTopColor: colors.border },
   rowPressed: { opacity: 0.6 },
+  syncCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space(3),
+    backgroundColor: colors.warningSoft,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    padding: space(4),
+  },
+  syncIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  syncMain: { flex: 1, gap: 2 },
+  syncTitle: { color: colors.text, fontSize: 15, fontWeight: '700' },
+  syncSub: { color: colors.textMuted, fontSize: 12 },
   iconWrap: {
     width: 32,
     height: 32,

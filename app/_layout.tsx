@@ -13,6 +13,7 @@ import * as Updates from 'expo-updates';
 import '@/lib/network-log';
 
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
+import { OutboxSync } from '@/components/OutboxSync';
 import { ToastProvider } from '@/components/ui/Toast';
 import { colors } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
@@ -47,14 +48,24 @@ SplashScreen.preventAutoHideAsync();
 // Expo's default update check is fire-and-forget: it downloads in the background
 // but only takes effect on the *next* cold start, so a fix can silently sit
 // undelivered indefinitely if the app isn't reopened at just the right moment.
-// Explicitly await the check+download here and reload immediately once fetched,
-// so a fresh install of the app always ends up on the latest published update
-// in this same session instead of depending on a reopen ritual.
+// Explicitly await the check+download here so a fresh launch ends up on the
+// latest published update instead of depending on a reopen ritual.
+//
+// But reloadAsync() mid-session is destructive: on 2G a field worker can be
+// deep in a 25-field KYC form by the time a slow download finishes, and an
+// unprompted reload would wipe their in-progress screen. So we only hot-reload
+// when the download lands within a short window of cold start — before anyone
+// could realistically be mid-form. Past that window we leave the fetched update
+// staged; Expo applies it automatically on the next cold start with nothing
+// lost. (Drafts also survive a reload, but not restarting mid-form is simplest.)
+const RELOAD_WINDOW_MS = 8000;
+
 async function applyPendingUpdate() {
   if (__DEV__) {
     await recordUpdateStatus({ checkedAt: new Date().toISOString(), phase: 'dev_skip' });
     return;
   }
+  const startedAt = Date.now();
   try {
     const result = await Updates.checkForUpdateAsync();
     if (!result.isAvailable) {
@@ -63,8 +74,13 @@ async function applyPendingUpdate() {
     }
     await recordUpdateStatus({ checkedAt: new Date().toISOString(), phase: 'downloading' });
     await Updates.fetchUpdateAsync();
-    await recordUpdateStatus({ checkedAt: new Date().toISOString(), phase: 'reloading' });
-    await Updates.reloadAsync();
+    if (Date.now() - startedAt <= RELOAD_WINDOW_MS) {
+      await recordUpdateStatus({ checkedAt: new Date().toISOString(), phase: 'reloading' });
+      await Updates.reloadAsync();
+    } else {
+      // Too slow to reload safely — the update is staged for the next launch.
+      await recordUpdateStatus({ checkedAt: new Date().toISOString(), phase: 'downloaded_deferred' });
+    }
   } catch (e) {
     // No network, no update service, etc. — just keep running on the current bundle.
     await recordUpdateStatus({ checkedAt: new Date().toISOString(), phase: 'error', detail: String(e) });
@@ -95,6 +111,7 @@ export default function RootLayout() {
         <ThemeProvider value={MoveGridTheme}>
           <ToastProvider>
             <StatusBar style="dark" />
+            <OutboxSync />
             <RootNavigator />
           </ToastProvider>
         </ThemeProvider>
@@ -159,6 +176,7 @@ function RootNavigator() {
       <Stack.Screen name="leads" options={{ headerShown: true }} />
       <Stack.Screen name="forms" options={{ headerShown: true }} />
       <Stack.Screen name="settings" options={{ headerShown: true }} />
+      <Stack.Screen name="outbox" options={{ headerShown: true }} />
       <Stack.Screen name="network-log" options={{ headerShown: true }} />
       <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
     </Stack>

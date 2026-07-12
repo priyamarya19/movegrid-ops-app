@@ -3,17 +3,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Text, StyleSheet } from 'react-native';
 
 import { Button } from '@/components/ui/Button';
+import { DraftBanner } from '@/components/ui/DraftBanner';
 import { ChipSelect, DateField, TextField } from '@/components/ui/Form';
 import { ErrorBanner, FormScreen } from '@/components/ui/FormScreen';
 import { ImageField } from '@/components/ui/ImageField';
 import { SelectField, type SelectOption } from '@/components/ui/SelectField';
 import { colors, space } from '@/constants/theme';
-import { ApiError, createAllotment, getRiders, getVehicles, lookupRider, type Rider, type RiderLookup, type Vehicle } from '@/lib/api';
+import { ApiError, createAllotment, getRiders, getVehicles, lookupRider, type NewAllotment, type Rider, type RiderLookup, type Vehicle } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { vehicleStatusPill } from '@/lib/format';
 import { useIdempotencyKey } from '@/lib/idempotency';
+import { submitOrQueue } from '@/lib/outbox';
 import { isValidMobile } from '@/lib/validation';
 import { useApiQuery } from '@/lib/useApiQuery';
+import { useFormDraft } from '@/lib/useFormDraft';
 
 const RIDER_MODES = [
   { label: 'B2B fleet rental', value: 'B2B fleet rental' },
@@ -95,6 +98,58 @@ export default function NewAllotmentScreen() {
     };
   }, []);
 
+  // Persist the in-progress allotment so a crash / back-swipe / OTA reload
+  // doesn't lose it. Uploaded doc/photo S3 keys and the looked-up rider are part
+  // of the snapshot, so they survive the restore without re-picking or re-lookup.
+  const draftValue = useMemo(
+    () => ({
+      riderId,
+      rider,
+      vehicleId,
+      riderMode,
+      onboardingFee,
+      deposit,
+      amount,
+      assignedDate,
+      paymentShot,
+      undertaking,
+      pics,
+    }),
+    [riderId, rider, vehicleId, riderMode, onboardingFee, deposit, amount, assignedDate, paymentShot, undertaking, pics]
+  );
+  type AllotmentDraft = typeof draftValue;
+
+  const restoreDraft = useCallback((d: AllotmentDraft) => {
+    setRiderId(d.riderId);
+    setRider(d.rider);
+    if (d.rider) setRiderHint(`${d.rider.name}${d.rider.nickname ? ` (${d.rider.nickname})` : ''}`);
+    setVehicleId(d.vehicleId);
+    setRiderMode(d.riderMode);
+    setOnboardingFee(d.onboardingFee);
+    setDeposit(d.deposit);
+    setAmount(d.amount);
+    setAssignedDate(d.assignedDate);
+    setPaymentShot(d.paymentShot);
+    setUndertaking(d.undertaking);
+    setPics(d.pics);
+  }, []);
+
+  const draft = useFormDraft<AllotmentDraft>({
+    storageKey: 'allotment-new',
+    value: draftValue,
+    onRestore: restoreDraft,
+    isDirty: (d) =>
+      !!d.rider ||
+      !!d.vehicleId ||
+      d.amount.trim() !== '' ||
+      d.onboardingFee.trim() !== '' ||
+      d.deposit.trim() !== '' ||
+      !!d.paymentShot ||
+      !!d.undertaking ||
+      d.pics.some(Boolean),
+    enabled: !submitting,
+  });
+
   const lookupRiderNow = async (value: string) => {
     if (!token || !value.trim()) return;
     if (!isValidMobile(value)) {
@@ -143,26 +198,33 @@ export default function NewAllotmentScreen() {
     if (!token || !rider || !vehicle) return;
     setError(null);
     setSubmitting(true);
+    const body: NewAllotment = {
+      rider_id: rider.id,
+      vehicle_id: vehicle.id,
+      rental_mode: riderMode,
+      onboarding_fee: onboardingFee.trim() ? Number(onboardingFee) : null,
+      security_deposit: deposit.trim() ? Number(deposit) : null,
+      amount_collected: amount.trim() ? Number(amount) : null,
+      payment_screenshot_url: paymentShot || null,
+      undertaking_url: undertaking || null,
+      allotment_pics: pics.filter(Boolean).length ? pics.filter(Boolean) : null,
+      assigned_date: assignedDate,
+    };
     try {
-      await createAllotment(
-        token,
-        {
-          rider_id: rider.id,
-          vehicle_id: vehicle.id,
-          rental_mode: riderMode,
-          onboarding_fee: onboardingFee.trim() ? Number(onboardingFee) : null,
-          security_deposit: deposit.trim() ? Number(deposit) : null,
-          amount_collected: amount.trim() ? Number(amount) : null,
-          payment_screenshot_url: paymentShot || null,
-          undertaking_url: undertaking || null,
-          allotment_pics: pics.filter(Boolean).length ? pics.filter(Boolean) : null,
-          assigned_date: assignedDate,
-        },
-        idem.current()
-      );
+      const outcome = await submitOrQueue({
+        idempotencyKey: idem.current(),
+        label: `Allotment · ${vehicle.ev_number} → ${rider.name}`,
+        job: { kind: 'createAllotment', body },
+        attempt: (key) => createAllotment(token, body, key),
+      });
       idem.reset();
+      await draft.clear();
       if (!mounted.current) return;
-      Alert.alert('Allotment created', `${vehicle.ev_number} assigned to ${rider.name}.`, [
+      const message =
+        outcome.status === 'sent'
+          ? `${vehicle.ev_number} assigned to ${rider.name}.`
+          : `No connection — ${vehicle.ev_number} → ${rider.name} is saved and will sync when back online.`;
+      Alert.alert(outcome.status === 'sent' ? 'Allotment created' : 'Saved offline', message, [
         { text: 'OK', onPress: () => router.replace({ pathname: '/rider/[id]', params: { id: rider.id } }) },
       ]);
     } catch (e) {
@@ -184,6 +246,13 @@ export default function NewAllotmentScreen() {
     <>
       <Stack.Screen options={{ title: 'New allotment' }} />
       <FormScreen>
+        {draft.status === 'available' ? (
+          <DraftBanner
+            message="You have an unsaved allotment."
+            onRestore={draft.restore}
+            onDiscard={draft.discard}
+          />
+        ) : null}
         <Text style={styles.section}>Vehicle</Text>
         <SelectField
           label="Available vehicle"

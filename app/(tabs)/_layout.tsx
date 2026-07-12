@@ -4,6 +4,7 @@ import { Pressable } from 'react-native';
 
 import { colors, space } from '@/constants/theme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+import { useOutbox } from '@/lib/useOutbox';
 
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>['name'];
@@ -22,6 +23,7 @@ function HeaderAddButton({ href }: { href: Href }) {
 }
 
 export default function TabLayout() {
+  const { count: pendingSync } = useOutbox();
   return (
     <Tabs
       screenOptions={{
@@ -67,6 +69,9 @@ export default function TabLayout() {
         options={{
           title: 'More',
           tabBarIcon: ({ color }) => <TabBarIcon name="ellipsis-h" color={color} />,
+          // Surface unsynced writes waiting in the outbound queue.
+          tabBarBadge: pendingSync > 0 ? pendingSync : undefined,
+          tabBarBadgeStyle: { backgroundColor: colors.warning, color: '#fff' },
         }}
       />
     </Tabs>

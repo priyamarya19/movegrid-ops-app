@@ -7,7 +7,13 @@ import * as SecureStore from 'expo-secure-store';
 
 const KEY = 'mg_update_status';
 
-export type UpdatePhase = 'dev_skip' | 'no_update' | 'downloading' | 'reloading' | 'error';
+export type UpdatePhase =
+  | 'dev_skip'
+  | 'no_update'
+  | 'downloading'
+  | 'reloading'
+  | 'downloaded_deferred'
+  | 'error';
 
 export type UpdateStatus = {
   checkedAt: string;

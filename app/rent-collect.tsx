@@ -14,10 +14,11 @@ import {
 } from '@/components/ui/PaymentProof';
 import { useToast } from '@/components/ui/Toast';
 import { colors, radius, space } from '@/constants/theme';
-import { recordRentReceived } from '@/lib/api';
+import { recordRentReceived, type RecordRent } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate, formatINR } from '@/lib/format';
 import { useIdempotencyKey } from '@/lib/idempotency';
+import { submitOrQueue } from '@/lib/outbox';
 
 // Rolling-balance model: a payment of any amount just extends the rider's
 // paid_through_date by (amount / daily_rate) days. There's no "which week is
@@ -61,20 +62,28 @@ export default function RentCollectScreen() {
     if (!token || !canSubmit || !proof.mode) return;
     setError(null);
     setSubmitting(true);
+    const body: RecordRent = {
+      amount: amountNum,
+      payment_mode: proof.mode,
+      payment_utr: isOnlineMode(proof.mode) ? proof.utr.trim() || null : null,
+      payment_screenshot_url: proof.proofKey,
+    };
     try {
-      const res = await recordRentReceived(
-        token,
-        params.riderId,
-        {
-          amount: amountNum,
-          payment_mode: proof.mode,
-          payment_utr: isOnlineMode(proof.mode) ? proof.utr.trim() || null : null,
-          payment_screenshot_url: proof.proofKey,
-        },
-        idem.current()
-      );
+      const outcome = await submitOrQueue({
+        idempotencyKey: idem.current(),
+        label: `Rent · ${params.riderName ?? params.riderId}`,
+        job: { kind: 'recordRentReceived', riderId: params.riderId, body },
+        attempt: (key) => recordRentReceived(token, params.riderId, body, key),
+      });
       idem.reset();
-      toast(`Covered ${res.days_added} day(s) · paid through ${formatDate(res.paid_through_date)}`, 'success');
+      if (outcome.status === 'sent') {
+        toast(
+          `Covered ${outcome.result.days_added} day(s) · paid through ${formatDate(outcome.result.paid_through_date)}`,
+          'success'
+        );
+      } else {
+        toast('No connection — payment saved, will sync when back online.', 'info');
+      }
       router.back();
     } catch (e) {
       if (!mounted.current) return;

@@ -10,6 +10,7 @@ import { colors, radius, space } from '@/constants/theme';
 import { addRiderPenalty } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useIdempotencyKey } from '@/lib/idempotency';
+import { submitOrQueue } from '@/lib/outbox';
 
 export default function AddPenaltyScreen() {
   const { token } = useAuth();
@@ -31,18 +32,22 @@ export default function AddPenaltyScreen() {
     if (!token || !canSubmit) return;
     setError(null);
     setSubmitting(true);
+    const body = {
+      detail: detail.trim(),
+      amount: amount.trim() ? Number(amount) : null,
+    };
     try {
-      await addRiderPenalty(
-        token,
-        params.riderId,
-        {
-          detail: detail.trim(),
-          amount: amount.trim() ? Number(amount) : null,
-        },
-        idem.current()
-      );
+      const outcome = await submitOrQueue({
+        idempotencyKey: idem.current(),
+        label: `Penalty · ${params.riderName ?? params.riderId}`,
+        job: { kind: 'addRiderPenalty', riderId: params.riderId, body },
+        attempt: (key) => addRiderPenalty(token, params.riderId, body, key),
+      });
       idem.reset();
-      toast('Penalty added', 'success');
+      toast(
+        outcome.status === 'sent' ? 'Penalty added' : 'No connection — saved, will sync when back online.',
+        outcome.status === 'sent' ? 'success' : 'info'
+      );
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to add penalty');

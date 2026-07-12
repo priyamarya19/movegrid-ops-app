@@ -13,10 +13,11 @@ import {
 } from '@/components/ui/PaymentProof';
 import { useToast } from '@/components/ui/Toast';
 import { colors, radius, space } from '@/constants/theme';
-import { updateRiderPenalty } from '@/lib/api';
+import { updateRiderPenalty, type UpdateRiderPenalty } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { formatINR } from '@/lib/format';
 import { useIdempotencyKey } from '@/lib/idempotency';
+import { submitOrQueue } from '@/lib/outbox';
 
 export default function PenaltyPayScreen() {
   const { token } = useAuth();
@@ -40,21 +41,25 @@ export default function PenaltyPayScreen() {
     if (!token || !canSubmit || !proof.mode) return;
     setError(null);
     setSubmitting(true);
+    const body: UpdateRiderPenalty = {
+      penalty_id: params.penaltyId,
+      action: 'pay',
+      payment_mode: proof.mode,
+      payment_utr: isOnlineMode(proof.mode) ? proof.utr.trim() || null : null,
+      payment_proof_url: proof.proofKey,
+    };
     try {
-      await updateRiderPenalty(
-        token,
-        params.riderId,
-        {
-          penalty_id: params.penaltyId,
-          action: 'pay',
-          payment_mode: proof.mode,
-          payment_utr: isOnlineMode(proof.mode) ? proof.utr.trim() || null : null,
-          payment_proof_url: proof.proofKey,
-        },
-        idem.current()
-      );
+      const outcome = await submitOrQueue({
+        idempotencyKey: idem.current(),
+        label: `Penalty payment · ${params.detail ?? params.penaltyId}`,
+        job: { kind: 'updateRiderPenalty', riderId: params.riderId, body },
+        attempt: (key) => updateRiderPenalty(token, params.riderId, body, key),
+      });
       idem.reset();
-      toast('Penalty marked paid', 'success');
+      toast(
+        outcome.status === 'sent' ? 'Penalty marked paid' : 'No connection — saved, will sync when back online.',
+        outcome.status === 'sent' ? 'success' : 'info'
+      );
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to record payment');
