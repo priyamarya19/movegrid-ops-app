@@ -16,6 +16,7 @@ import { colors, radius, space } from '@/constants/theme';
 import { updateRiderPenalty } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { formatINR } from '@/lib/format';
+import { useIdempotencyKey } from '@/lib/idempotency';
 
 export default function PenaltyPayScreen() {
   const { token } = useAuth();
@@ -31,6 +32,7 @@ export default function PenaltyPayScreen() {
   const [proof, setProof] = useState<PaymentProofValue>(emptyPaymentProof);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const idem = useIdempotencyKey();
 
   const canSubmit = isPaymentProofComplete(proof) && !submitting;
 
@@ -39,13 +41,19 @@ export default function PenaltyPayScreen() {
     setError(null);
     setSubmitting(true);
     try {
-      await updateRiderPenalty(token, params.riderId, {
-        penalty_id: params.penaltyId,
-        action: 'pay',
-        payment_mode: proof.mode,
-        payment_utr: isOnlineMode(proof.mode) ? proof.utr.trim() || null : null,
-        payment_proof_url: proof.proofKey,
-      });
+      await updateRiderPenalty(
+        token,
+        params.riderId,
+        {
+          penalty_id: params.penaltyId,
+          action: 'pay',
+          payment_mode: proof.mode,
+          payment_utr: isOnlineMode(proof.mode) ? proof.utr.trim() || null : null,
+          payment_proof_url: proof.proofKey,
+        },
+        idem.current()
+      );
+      idem.reset();
       toast('Penalty marked paid', 'success');
       router.back();
     } catch (e) {

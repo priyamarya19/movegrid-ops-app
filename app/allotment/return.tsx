@@ -18,6 +18,7 @@ import { colors, space } from '@/constants/theme';
 import { ApiError, getActiveAssignment, getVehicles, returnAllotment, type ActiveAssignment, type Vehicle } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate } from '@/lib/format';
+import { useIdempotencyKey } from '@/lib/idempotency';
 import { useApiQuery } from '@/lib/useApiQuery';
 
 const RENT_CLEARED = [
@@ -80,6 +81,7 @@ export default function ReturnVehicleScreen() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const idem = useIdempotencyKey();
 
   // Guards async handlers from setState after the screen unmounts mid-request.
   const mounted = useRef(true);
@@ -159,20 +161,26 @@ export default function ReturnVehicleScreen() {
     setError(null);
     setSubmitting(true);
     try {
-      await returnAllotment(token, assignment.id, {
-        returned_date: returnedDate,
-        rent_cleared: rentCleared ? rentCleared === 'yes' : null,
-        is_issue_swap: isIssueSwap,
-        non_functional_days: isIssueSwap && nonFunctionalDaysTrim ? Number(nonFunctionalDaysTrim) : 0,
-        penalty_amount: penalty.trim() ? Number(penalty) : null,
-        penalty_detail: penaltyDetail.trim() || null,
-        condition_on_return: conditions.length ? conditions : null,
-        return_photos: photos.filter(Boolean).length ? photos.filter(Boolean) : null,
-        return_remarks: remarks.trim() || null,
-        rent_settlement_mode: rentSettled ? settlement.mode : null,
-        rent_settlement_utr: rentSettled && isOnlineMode(settlement.mode) ? settlement.utr.trim() || null : null,
-        rent_settlement_proof_url: rentSettled ? settlement.proofKey : null,
-      });
+      await returnAllotment(
+        token,
+        assignment.id,
+        {
+          returned_date: returnedDate,
+          rent_cleared: rentCleared ? rentCleared === 'yes' : null,
+          is_issue_swap: isIssueSwap,
+          non_functional_days: isIssueSwap && nonFunctionalDaysTrim ? Number(nonFunctionalDaysTrim) : 0,
+          penalty_amount: penalty.trim() ? Number(penalty) : null,
+          penalty_detail: penaltyDetail.trim() || null,
+          condition_on_return: conditions.length ? conditions : null,
+          return_photos: photos.filter(Boolean).length ? photos.filter(Boolean) : null,
+          return_remarks: remarks.trim() || null,
+          rent_settlement_mode: rentSettled ? settlement.mode : null,
+          rent_settlement_utr: rentSettled && isOnlineMode(settlement.mode) ? settlement.utr.trim() || null : null,
+          rent_settlement_proof_url: rentSettled ? settlement.proofKey : null,
+        },
+        idem.current()
+      );
+      idem.reset();
       if (!mounted.current) return;
       Alert.alert('Vehicle returned', `${assignment.ev_number} marked as returned.`, [
         { text: 'OK', onPress: () => router.replace('/(tabs)/vehicles') },

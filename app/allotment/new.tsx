@@ -11,6 +11,7 @@ import { colors, space } from '@/constants/theme';
 import { ApiError, createAllotment, getRiders, getVehicles, lookupRider, type Rider, type RiderLookup, type Vehicle } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { vehicleStatusPill } from '@/lib/format';
+import { useIdempotencyKey } from '@/lib/idempotency';
 import { isValidMobile } from '@/lib/validation';
 import { useApiQuery } from '@/lib/useApiQuery';
 
@@ -83,6 +84,7 @@ export default function NewAllotmentScreen() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const idem = useIdempotencyKey();
 
   // Guards async handlers from setState after the screen unmounts mid-request.
   const mounted = useRef(true);
@@ -142,18 +144,23 @@ export default function NewAllotmentScreen() {
     setError(null);
     setSubmitting(true);
     try {
-      await createAllotment(token, {
-        rider_id: rider.id,
-        vehicle_id: vehicle.id,
-        rental_mode: riderMode,
-        onboarding_fee: onboardingFee.trim() ? Number(onboardingFee) : null,
-        security_deposit: deposit.trim() ? Number(deposit) : null,
-        amount_collected: amount.trim() ? Number(amount) : null,
-        payment_screenshot_url: paymentShot || null,
-        undertaking_url: undertaking || null,
-        allotment_pics: pics.filter(Boolean).length ? pics.filter(Boolean) : null,
-        assigned_date: assignedDate,
-      });
+      await createAllotment(
+        token,
+        {
+          rider_id: rider.id,
+          vehicle_id: vehicle.id,
+          rental_mode: riderMode,
+          onboarding_fee: onboardingFee.trim() ? Number(onboardingFee) : null,
+          security_deposit: deposit.trim() ? Number(deposit) : null,
+          amount_collected: amount.trim() ? Number(amount) : null,
+          payment_screenshot_url: paymentShot || null,
+          undertaking_url: undertaking || null,
+          allotment_pics: pics.filter(Boolean).length ? pics.filter(Boolean) : null,
+          assigned_date: assignedDate,
+        },
+        idem.current()
+      );
+      idem.reset();
       if (!mounted.current) return;
       Alert.alert('Allotment created', `${vehicle.ev_number} assigned to ${rider.name}.`, [
         { text: 'OK', onPress: () => router.replace({ pathname: '/rider/[id]', params: { id: rider.id } }) },

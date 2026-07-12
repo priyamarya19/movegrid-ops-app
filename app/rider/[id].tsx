@@ -18,7 +18,7 @@ import {
   type RiderRentCycle,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { formatDate, formatINR, penaltyStatusPill, rentStatusPill, riderStatusPill } from '@/lib/format';
+import { formatDate, formatINR, maskAadhaar, maskDL, maskPAN, penaltyStatusPill, rentStatusPill, riderStatusPill } from '@/lib/format';
 import { useApiQuery } from '@/lib/useApiQuery';
 
 export default function RiderDetailScreen() {
@@ -142,9 +142,9 @@ function RiderBody({ data, refreshing, onRefresh }: { data: RiderDetail; refresh
       <Section title="KYC">
         <FieldCard
           rows={[
-            { label: 'Aadhaar', value: rider.aadhaar ?? '—' },
-            { label: 'PAN', value: rider.pan ?? '—' },
-            { label: 'Driving licence', value: rider.dl_number ?? '—' },
+            { label: 'Aadhaar', value: maskAadhaar(rider.aadhaar) },
+            { label: 'PAN', value: maskPAN(rider.pan) },
+            { label: 'Driving licence', value: maskDL(rider.dl_number) },
           ]}
         />
       </Section>

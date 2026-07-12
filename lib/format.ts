@@ -49,6 +49,29 @@ export function formatINR(value: number | string | null | undefined): string {
   return `₹${n.toLocaleString('en-IN')}`;
 }
 
+// KYC display masks. Full values live in the API/DB; these are display-only so
+// ops users never see complete identity numbers on screen. Null/empty → '—'.
+export function maskAadhaar(value: string | null | undefined): string {
+  const digits = (value ?? '').replace(/\s+/g, '');
+  if (!digits) return '—';
+  const last4 = digits.slice(-4);
+  return `XXXX XXXX ${last4}`;
+}
+
+export function maskPAN(value: string | null | undefined): string {
+  const raw = (value ?? '').trim();
+  if (!raw) return '—';
+  if (raw.length <= 4) return raw;
+  return `${raw.slice(0, 2)}${'•'.repeat(raw.length - 4)}${raw.slice(-2)}`;
+}
+
+export function maskDL(value: string | null | undefined): string {
+  const raw = (value ?? '').trim();
+  if (!raw) return '—';
+  if (raw.length <= 4) return raw;
+  return `${raw.slice(0, 2)}${'•'.repeat(raw.length - 4)}${raw.slice(-2)}`;
+}
+
 export function formatDate(value: string | null | undefined): string {
   if (!value) return '—';
   const d = new Date(value);

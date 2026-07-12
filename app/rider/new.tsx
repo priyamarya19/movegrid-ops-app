@@ -9,6 +9,7 @@ import { ImageField } from '@/components/ui/ImageField';
 import { colors, radius, space } from '@/constants/theme';
 import { ApiError, checkBlacklist, createRider, type NewRider } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useIdempotencyKey } from '@/lib/idempotency';
 import {
   digitsOnly,
   isValidAadhaar,
@@ -57,6 +58,7 @@ export default function NewRiderScreen() {
   const [blacklistCheckFailed, setBlacklistCheckFailed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const idem = useIdempotencyKey();
 
   // Tracks whether the screen is still mounted, so async handlers don't
   // setState after the user navigates away mid-request.
@@ -137,7 +139,8 @@ export default function NewRiderScreen() {
         local_ref_name: nullify(form.local_ref_name),
         local_ref_mobile: nullify(form.local_ref_mobile),
       };
-      const res = await createRider(token, body);
+      const res = await createRider(token, body, idem.current());
+      idem.reset();
       if (!mounted.current) return;
       Alert.alert('Rider added', `${res.name} created (${res.rider_code}).`, [
         { text: 'OK', onPress: () => router.replace({ pathname: '/rider/[id]', params: { id: res.id } }) },

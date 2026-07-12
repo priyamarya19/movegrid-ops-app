@@ -31,6 +31,15 @@ type FetchOptions = {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
   token?: string | null;
+  /**
+   * Client idempotency key for money/state writes. Sent as the `Idempotency-Key`
+   * header so the backend can dedupe a retry of the same logical submission
+   * (e.g. after a 15s write timeout where the server actually committed). The
+   * caller must pass a STABLE key across retries — see lib/idempotency.ts.
+   * The auto-retry loop below reuses the same `init.headers`, so the key is
+   * preserved across transient-failure retries automatically.
+   */
+  idempotencyKey?: string;
 };
 
 const TIMEOUT_MS = 15000;
@@ -46,13 +55,14 @@ async function fetchWithTimeout(url: string, init: RequestInit): Promise<Respons
 }
 
 async function apiFetch<T>(path: string, opts: FetchOptions = {}): Promise<T> {
-  const { method = 'GET', body, token } = opts;
+  const { method = 'GET', body, token, idempotencyKey } = opts;
 
   const headers: Record<string, string> = {
     'X-Client-Type': 'mobile',
   };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = `Bearer ${token}`;
+  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
 
   const init: RequestInit = {
     method,
@@ -341,8 +351,8 @@ export type NewAllotment = {
   assigned_date?: string | null;
 };
 
-export function createAllotment(token: string, body: NewAllotment) {
-  return apiFetch<{ id: string }>('/api/allotments', { method: 'POST', body, token });
+export function createAllotment(token: string, body: NewAllotment, idempotencyKey?: string) {
+  return apiFetch<{ id: string }>('/api/allotments', { method: 'POST', body, token, idempotencyKey });
 }
 
 export type ReturnPayload = {
@@ -364,8 +374,8 @@ export type ReturnPayload = {
   rent_settlement_proof_url?: string | null;
 };
 
-export function returnAllotment(token: string, assignmentId: string, body: ReturnPayload) {
-  return apiFetch<{ ok: boolean }>(`/api/allotments/${assignmentId}/return`, { method: 'PATCH', body, token });
+export function returnAllotment(token: string, assignmentId: string, body: ReturnPayload, idempotencyKey?: string) {
+  return apiFetch<{ ok: boolean }>(`/api/allotments/${assignmentId}/return`, { method: 'PATCH', body, token, idempotencyKey });
 }
 
 export type NewRider = {
@@ -396,11 +406,12 @@ export type NewRider = {
   local_ref_mobile?: string | null;
 };
 
-export function createRider(token: string, body: NewRider) {
+export function createRider(token: string, body: NewRider, idempotencyKey?: string) {
   return apiFetch<{ id: string; rider_code: string; name: string }>('/api/riders', {
     method: 'POST',
     body,
     token,
+    idempotencyKey,
   });
 }
 
@@ -493,8 +504,8 @@ export type RecordRentResponse = {
   days_added: number;
 };
 
-export function recordRentReceived(token: string, riderId: string, body: RecordRent) {
-  return apiFetch<RecordRentResponse>(`/api/riders/${riderId}/rent-received`, { method: 'POST', body, token });
+export function recordRentReceived(token: string, riderId: string, body: RecordRent, idempotencyKey?: string) {
+  return apiFetch<RecordRentResponse>(`/api/riders/${riderId}/rent-received`, { method: 'POST', body, token, idempotencyKey });
 }
 
 // ---- Rider penalties ----
@@ -519,9 +530,10 @@ export function getRiderPenalties(token: string, riderId: string) {
 export function addRiderPenalty(
   token: string,
   riderId: string,
-  body: { detail: string; amount?: number | null }
+  body: { detail: string; amount?: number | null },
+  idempotencyKey?: string
 ) {
-  return apiFetch<{ ok: boolean }>(`/api/riders/${riderId}/penalties`, { method: 'POST', body, token });
+  return apiFetch<{ ok: boolean }>(`/api/riders/${riderId}/penalties`, { method: 'POST', body, token, idempotencyKey });
 }
 
 export type UpdateRiderPenalty = {
@@ -533,8 +545,8 @@ export type UpdateRiderPenalty = {
   payment_proof_url?: string;
 };
 
-export function updateRiderPenalty(token: string, riderId: string, body: UpdateRiderPenalty) {
-  return apiFetch<{ ok: boolean }>(`/api/riders/${riderId}/penalties`, { method: 'PATCH', body, token });
+export function updateRiderPenalty(token: string, riderId: string, body: UpdateRiderPenalty, idempotencyKey?: string) {
+  return apiFetch<{ ok: boolean }>(`/api/riders/${riderId}/penalties`, { method: 'PATCH', body, token, idempotencyKey });
 }
 
 export type RentSummary = {

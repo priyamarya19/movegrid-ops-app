@@ -17,6 +17,7 @@ import { colors, radius, space } from '@/constants/theme';
 import { recordRentReceived } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate, formatINR } from '@/lib/format';
+import { useIdempotencyKey } from '@/lib/idempotency';
 
 // Rolling-balance model: a payment of any amount just extends the rider's
 // paid_through_date by (amount / daily_rate) days. There's no "which week is
@@ -38,6 +39,7 @@ export default function RentCollectScreen() {
   const [proof, setProof] = useState<PaymentProofValue>(emptyPaymentProof);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const idem = useIdempotencyKey();
 
   const mounted = useRef(true);
   useEffect(() => {
@@ -60,12 +62,18 @@ export default function RentCollectScreen() {
     setError(null);
     setSubmitting(true);
     try {
-      const res = await recordRentReceived(token, params.riderId, {
-        amount: amountNum,
-        payment_mode: proof.mode,
-        payment_utr: isOnlineMode(proof.mode) ? proof.utr.trim() || null : null,
-        payment_screenshot_url: proof.proofKey,
-      });
+      const res = await recordRentReceived(
+        token,
+        params.riderId,
+        {
+          amount: amountNum,
+          payment_mode: proof.mode,
+          payment_utr: isOnlineMode(proof.mode) ? proof.utr.trim() || null : null,
+          payment_screenshot_url: proof.proofKey,
+        },
+        idem.current()
+      );
+      idem.reset();
       toast(`Covered ${res.days_added} day(s) · paid through ${formatDate(res.paid_through_date)}`, 'success');
       router.back();
     } catch (e) {

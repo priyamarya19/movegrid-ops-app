@@ -9,6 +9,7 @@ import { useToast } from '@/components/ui/Toast';
 import { colors, radius, space } from '@/constants/theme';
 import { addRiderPenalty } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useIdempotencyKey } from '@/lib/idempotency';
 
 export default function AddPenaltyScreen() {
   const { token } = useAuth();
@@ -20,6 +21,7 @@ export default function AddPenaltyScreen() {
   const [amount, setAmount] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const idem = useIdempotencyKey();
 
   // Amount is optional, but if entered it must be a positive number.
   const amountInvalid = amount.trim().length > 0 && !(Number(amount) > 0);
@@ -30,10 +32,16 @@ export default function AddPenaltyScreen() {
     setError(null);
     setSubmitting(true);
     try {
-      await addRiderPenalty(token, params.riderId, {
-        detail: detail.trim(),
-        amount: amount.trim() ? Number(amount) : null,
-      });
+      await addRiderPenalty(
+        token,
+        params.riderId,
+        {
+          detail: detail.trim(),
+          amount: amount.trim() ? Number(amount) : null,
+        },
+        idem.current()
+      );
+      idem.reset();
       toast('Penalty added', 'success');
       router.back();
     } catch (e) {
