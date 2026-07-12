@@ -9,7 +9,9 @@ import 'react-native-reanimated';
 import * as Updates from 'expo-updates';
 
 // Side-effect import: starts the on-device network logger before any API call
-// fires, so it captures all requests (and failures) in Expo Go and the APK.
+// fires. Capture is gated on __DEV__ inside lib/network-log, so it only runs
+// against the Metro dev server — never in an EAS build (preview APK or prod
+// AAB), where it would otherwise record passwords and KYC traffic.
 import '@/lib/network-log';
 
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
@@ -177,7 +179,10 @@ function RootNavigator() {
       <Stack.Screen name="forms" options={{ headerShown: true }} />
       <Stack.Screen name="settings" options={{ headerShown: true }} />
       <Stack.Screen name="outbox" options={{ headerShown: true }} />
-      <Stack.Screen name="network-log" options={{ headerShown: true }} />
+      {/* Dev-only: the network log captures nothing outside __DEV__ (see
+          lib/network-log), and the shake gesture that opens it is also
+          __DEV__-gated, so the route only needs to exist during development. */}
+      {__DEV__ ? <Stack.Screen name="network-log" options={{ headerShown: true }} /> : null}
       <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
     </Stack>
   );

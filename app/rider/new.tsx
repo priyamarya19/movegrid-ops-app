@@ -59,6 +59,10 @@ export default function NewRiderScreen() {
   const [form, setForm] = useState<FormState>(EMPTY);
   const [blacklist, setBlacklist] = useState<string | null>(null);
   const [blacklistCheckFailed, setBlacklistCheckFailed] = useState(false);
+  // The exact (whitespace-stripped) Aadhaar value that has passed a blacklist
+  // check. Advancing is gated on this matching the current input, so an edited
+  // Aadhaar can't ride on a stale "clean" result and a never-run check blocks.
+  const [checkedAadhaar, setCheckedAadhaar] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const idem = useIdempotencyKey();
@@ -87,6 +91,15 @@ export default function NewRiderScreen() {
   const set = (k: keyof FormState, v: string) => setForm((p) => ({ ...p, [k]: v }));
   // Phone fields: keep only digits, capped at 10, so the user can't overtype.
   const setPhone = (k: keyof FormState, v: string) => set(k, digitsOnly(v).slice(0, 10));
+  // Editing the Aadhaar invalidates any prior blacklist result: clear the
+  // warning, the failure flag, and the "checked" marker so the user must let the
+  // check re-run (and clear) before they can advance.
+  const setAadhaar = (v: string) => {
+    set('aadhaar', v);
+    setBlacklist(null);
+    setBlacklistCheckFailed(false);
+    setCheckedAadhaar(null);
+  };
 
   const mobileValid = isValidMobile(form.mobile);
   const familyRefMobileValid = !form.family_ref_mobile.trim() || isValidMobile(form.family_ref_mobile);
@@ -99,6 +112,7 @@ export default function NewRiderScreen() {
   const checkAadhaar = async () => {
     const clean = form.aadhaar.replace(/\s/g, '');
     setBlacklistCheckFailed(false);
+    setCheckedAadhaar(null);
     if (!token || clean.length < 12) {
       setBlacklist(null);
       return;
@@ -107,6 +121,8 @@ export default function NewRiderScreen() {
       const res = await checkBlacklist(token, clean);
       if (!mounted.current) return;
       setBlacklist(res.blacklisted ? res.reason ?? 'This rider has been blacklisted.' : null);
+      // Mark this exact value as verified so the Next gate can trust it.
+      setCheckedAadhaar(clean);
     } catch {
       // Don't silently swallow — a failed check must not read as "clean".
       if (!mounted.current) return;
@@ -115,8 +131,15 @@ export default function NewRiderScreen() {
     }
   };
 
+  // An Aadhaar (optional for onboarding) that IS entered must be valid, have
+  // passed a completed blacklist check for that exact value, and not be a hit —
+  // otherwise the operator can't advance past step 1.
+  const aadhaarClean = form.aadhaar.replace(/\s/g, '');
+  const blacklistCleared =
+    aadhaarClean.length === 0 ||
+    (aadhaarValid && !blacklist && !blacklistCheckFailed && checkedAadhaar === aadhaarClean);
   const page1Valid =
-    form.name.trim() && mobileValid && form.current_address.trim() && aadhaarValid && panValid;
+    form.name.trim() && mobileValid && form.current_address.trim() && aadhaarValid && panValid && blacklistCleared;
   const page2Valid = familyRefMobileValid && localRefMobileValid && ifscValid;
 
   const nullify = (v: string) => (v.trim() ? v.trim() : null);
@@ -221,7 +244,7 @@ export default function NewRiderScreen() {
             <TextField
               label="Aadhaar number"
               value={form.aadhaar}
-              onChangeText={(v) => set('aadhaar', v)}
+              onChangeText={setAadhaar}
               onEndEditing={checkAadhaar}
               placeholder="XXXX XXXX XXXX"
               keyboardType="number-pad"
@@ -239,6 +262,13 @@ export default function NewRiderScreen() {
               <View style={styles.blacklistWarn}>
                 <Text style={styles.blacklistWarnText}>
                   Couldn't verify blacklist status — check the connection and retry before allotting.
+                </Text>
+              </View>
+            ) : null}
+            {aadhaarValid && !blacklist && !blacklistCheckFailed && checkedAadhaar !== aadhaarClean ? (
+              <View style={styles.blacklistWarn}>
+                <Text style={styles.blacklistWarnText}>
+                  Tap outside the Aadhaar field to run the blacklist check before continuing.
                 </Text>
               </View>
             ) : null}

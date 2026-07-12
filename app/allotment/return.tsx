@@ -17,7 +17,7 @@ import { SelectField, type SelectOption } from '@/components/ui/SelectField';
 import { colors, space } from '@/constants/theme';
 import { ApiError, getActiveAssignment, getVehicles, returnAllotment, type ActiveAssignment, type ReturnPayload, type Vehicle } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { formatDate } from '@/lib/format';
+import { formatDate, todayISO } from '@/lib/format';
 import { useIdempotencyKey } from '@/lib/idempotency';
 import { submitOrQueue } from '@/lib/outbox';
 import { useApiQuery } from '@/lib/useApiQuery';
@@ -41,7 +41,7 @@ const CONDITIONS = [
 ].map((c) => ({ label: c, value: c }));
 
 const RETURN_PHOTOS = ['Photo 1', 'Photo 2', 'Photo 3'];
-const today = () => new Date().toISOString().split('T')[0];
+const today = () => todayISO();
 
 export default function ReturnVehicleScreen() {
   const { token } = useAuth();

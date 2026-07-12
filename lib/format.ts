@@ -72,6 +72,21 @@ export function maskDL(value: string | null | undefined): string {
   return `${raw.slice(0, 2)}${'•'.repeat(raw.length - 4)}${raw.slice(-2)}`;
 }
 
+// Local-date serialization for IST field work. `toISOString()` formats in UTC,
+// so before 05:30 IST it rolls the date back a day — a late-night/early-morning
+// entry would record "yesterday". These read the local calendar components
+// instead, so the recorded day always matches the operator's wall clock.
+export function toLocalISODate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+export function todayISO(): string {
+  return toLocalISODate(new Date());
+}
+
 export function formatDate(value: string | null | undefined): string {
   if (!value) return '—';
   const d = new Date(value);

@@ -9,6 +9,7 @@ import { ImageField } from '@/components/ui/ImageField';
 import { useToast } from '@/components/ui/Toast';
 import { colors, space } from '@/constants/theme';
 import { createVehicle, getHubs, type Hub } from '@/lib/api';
+import { todayISO } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useApiQuery } from '@/lib/useApiQuery';
 
@@ -98,7 +99,7 @@ export default function NewVehicleScreen() {
         <ChipSelect label="Battery partner" options={BATTERY_PARTNERS} value={batteryPartner} onChange={setBatteryPartner} />
 
         <Text style={styles.section}>Purchase</Text>
-        <DateField label="Purchase date" value={purchaseDate || new Date().toISOString().split('T')[0]} onChange={setPurchaseDate} />
+        <DateField label="Purchase date" value={purchaseDate || todayISO()} onChange={setPurchaseDate} />
         <TextField label="Purchase price (₹)" value={price} onChangeText={setPrice} placeholder="0" keyboardType="numeric" editable={!submitting} />
 
         <Text style={styles.section}>Documents</Text>

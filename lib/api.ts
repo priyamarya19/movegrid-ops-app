@@ -43,10 +43,14 @@ type FetchOptions = {
 };
 
 const TIMEOUT_MS = 15000;
+// Multipart uploads carry a full-res photo over 2G, so they get a longer budget
+// than JSON calls — but still bounded, so a stalled upload fails cleanly instead
+// of hanging ImageField's spinner forever.
+const UPLOAD_TIMEOUT_MS = 60000;
 
-async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(url, { ...init, signal: controller.signal });
   } finally {
@@ -436,15 +440,19 @@ export async function uploadFile(token: string, asset: UploadAsset, folder: stri
 
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}/api/upload`, {
-      method: 'POST',
-      headers: {
-        // NOTE: do not set Content-Type — RN adds the multipart boundary.
-        'X-Client-Type': 'mobile',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    res = await fetchWithTimeout(
+      `${API_BASE_URL}/api/upload`,
+      {
+        method: 'POST',
+        headers: {
+          // NOTE: do not set Content-Type — RN adds the multipart boundary.
+          'X-Client-Type': 'mobile',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: form,
       },
-      body: form,
-    });
+      UPLOAD_TIMEOUT_MS
+    );
   } catch {
     throw new ApiError(`Can't reach the server at ${API_BASE_URL}. Check the connection.`, 0);
   }

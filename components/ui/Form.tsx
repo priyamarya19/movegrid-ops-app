@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Platform, Pressable, Text, TextInput, View, StyleSheet, type TextInputProps } from 'react-native';
 
 import { colors, radius, space } from '@/constants/theme';
-import { formatDate } from '@/lib/format';
+import { formatDate, toLocalISODate } from '@/lib/format';
 
 type FieldTone = 'default' | 'success' | 'error';
 
@@ -130,7 +130,7 @@ export function DateField({
           onChange={(event, date) => {
             setOpen(Platform.OS === 'ios');
             if (event.type === 'set' && date) {
-              onChange(date.toISOString().split('T')[0]);
+              onChange(toLocalISODate(date));
               if (Platform.OS === 'ios') setOpen(false);
             }
           }}

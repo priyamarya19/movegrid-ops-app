@@ -11,7 +11,7 @@ import { SelectField, type SelectOption } from '@/components/ui/SelectField';
 import { colors, space } from '@/constants/theme';
 import { ApiError, createAllotment, getRiders, getVehicles, lookupRider, type NewAllotment, type Rider, type RiderLookup, type Vehicle } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { vehicleStatusPill } from '@/lib/format';
+import { todayISO, vehicleStatusPill } from '@/lib/format';
 import { useIdempotencyKey } from '@/lib/idempotency';
 import { submitOrQueue } from '@/lib/outbox';
 import { isValidMobile } from '@/lib/validation';
@@ -27,7 +27,7 @@ const RIDER_MODES = [
 const ALLOTMENT_PHOTOS = ['Front', 'Left side', 'Right side', 'Back', 'Rider on scooter'];
 // Vehicle statuses that can actually be handed out (not assigned / maintenance / retired).
 const DEPLOYABLE = ['ready_to_deploy'];
-const today = () => new Date().toISOString().split('T')[0];
+const today = () => todayISO();
 
 export default function NewAllotmentScreen() {
   const { token } = useAuth();
@@ -192,10 +192,32 @@ export default function NewAllotmentScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const canSubmit = !!rider && !!vehicle && !!riderMode && amount.trim().length > 0 && !submitting;
+  // Money is being collected — the amount must be a real positive number
+  // (Number('abc') → NaN, which would otherwise serialize to null silently),
+  // and any collection needs a payment screenshot as proof (mirrors the
+  // mandatory-proof rule on rent-collect / return settlement).
+  const amountNum = Number(amount);
+  const amountInvalid = amount.trim().length > 0 && !(amountNum > 0);
+  const needsProof = amountNum > 0 && !paymentShot;
+  const canSubmit =
+    !!rider &&
+    !!vehicle &&
+    !!riderMode &&
+    amount.trim().length > 0 &&
+    !amountInvalid &&
+    !needsProof &&
+    !submitting;
 
   const onSubmit = async () => {
     if (!token || !rider || !vehicle) return;
+    if (amountInvalid) {
+      setError('Amount collected must be a positive number.');
+      return;
+    }
+    if (needsProof) {
+      setError('Attach the payment screenshot for the amount collected.');
+      return;
+    }
     setError(null);
     setSubmitting(true);
     const body: NewAllotment = {
@@ -304,12 +326,16 @@ export default function NewAllotmentScreen() {
           placeholder="0"
           keyboardType="numeric"
           editable={!submitting}
-          hint="Total of onboarding fee + security deposit"
+          tone={amountInvalid ? 'error' : 'default'}
+          hint={amountInvalid ? 'Enter a positive amount' : 'Total of onboarding fee + security deposit'}
         />
         <DateField label="Allotment date" required value={assignedDate} onChange={setAssignedDate} />
 
         <Text style={styles.section}>Documents</Text>
         <ImageField label="Payment screenshot" folder="payments" value={paymentShot} onChange={setPaymentShot} />
+        {needsProof ? (
+          <Text style={styles.proofHint}>Required — attach the payment screenshot for the amount collected.</Text>
+        ) : null}
         <ImageField label="Signed undertaking" folder="undertakings" value={undertaking} onChange={setUndertaking} />
 
         <Text style={styles.section}>Allotment photos</Text>
@@ -336,4 +362,5 @@ const styles = StyleSheet.create({
   },
   riderHint: { color: colors.textFaint, fontSize: 12, marginTop: -space(1) },
   riderHintError: { color: colors.danger },
+  proofHint: { color: colors.danger, fontSize: 12, marginTop: -space(1) },
 });
