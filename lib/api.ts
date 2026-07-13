@@ -301,6 +301,8 @@ export type VehicleLookup = {
   motor_number: string | null;
   controller_number: string | null;
   battery_number: string | null;
+  /** Model's daily rate — used to prefill the allotment's Daily rental field. */
+  rental_per_day: number | string | null;
 };
 
 export function lookupVehicle(token: string, evNumber: string) {
@@ -313,6 +315,9 @@ export type RiderLookup = {
   nickname: string | null;
   mobile: string;
   status: string;
+  /** Business type (B2B fleet rental / Rider rental / B2B rider). */
+  rider_mode: string | null;
+  /** Billing plan (weekly / monthly). */
   rental_mode: string | null;
   onboarding_fee: number | string | null;
   security_deposit: number | string | null;
@@ -345,7 +350,12 @@ export type NewAllotment = {
   rider_id: string;
   vehicle_id: string;
   hub_id?: string | null;
+  /** Business type (B2B fleet rental / Rider rental / B2B rider). */
+  rider_mode?: string | null;
+  /** Billing plan (weekly / monthly) — riders.rental_mode CHECK allows only these. */
   rental_mode?: string | null;
+  /** Rider's daily rent; prefilled from the vehicle model rate, editable per deal. */
+  daily_rent?: number | null;
   onboarding_fee?: number | null;
   security_deposit?: number | null;
   amount_collected?: number | null;

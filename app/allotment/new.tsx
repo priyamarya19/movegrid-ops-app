@@ -9,7 +9,7 @@ import { ErrorBanner, FormScreen } from '@/components/ui/FormScreen';
 import { ImageField } from '@/components/ui/ImageField';
 import { SelectField, type SelectOption } from '@/components/ui/SelectField';
 import { colors, space } from '@/constants/theme';
-import { ApiError, createAllotment, getRiders, getVehicles, lookupRider, type NewAllotment, type Rider, type RiderLookup, type Vehicle } from '@/lib/api';
+import { ApiError, createAllotment, getRiders, getVehicles, lookupRider, lookupVehicle, type NewAllotment, type Rider, type RiderLookup, type Vehicle } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { todayISO, vehicleStatusPill } from '@/lib/format';
 import { useIdempotencyKey } from '@/lib/idempotency';
@@ -22,6 +22,12 @@ const RIDER_MODES = [
   { label: 'B2B fleet rental', value: 'B2B fleet rental' },
   { label: 'Rider rental', value: 'Rider rental' },
   { label: 'B2B rider', value: 'B2B rider' },
+];
+
+// Billing plan — maps to riders.rental_mode (CHECK constraint allows only these).
+const RENTAL_PLANS = [
+  { label: 'Weekly', value: 'weekly' },
+  { label: 'Monthly', value: 'monthly' },
 ];
 
 const ALLOTMENT_PHOTOS = ['Front', 'Left side', 'Right side', 'Back', 'Rider on scooter'];
@@ -77,6 +83,8 @@ export default function NewAllotmentScreen() {
   const vehicle = useMemo(() => available.find((v) => v.id === vehicleId) ?? null, [available, vehicleId]);
 
   const [riderMode, setRiderMode] = useState<string | null>(null);
+  const [rentalPlan, setRentalPlan] = useState<string | null>(null);
+  const [dailyRent, setDailyRent] = useState('');
   const [onboardingFee, setOnboardingFee] = useState('');
   const [deposit, setDeposit] = useState('');
   const [amount, setAmount] = useState('');
@@ -107,6 +115,8 @@ export default function NewAllotmentScreen() {
       rider,
       vehicleId,
       riderMode,
+      rentalPlan,
+      dailyRent,
       onboardingFee,
       deposit,
       amount,
@@ -115,7 +125,7 @@ export default function NewAllotmentScreen() {
       undertaking,
       pics,
     }),
-    [riderId, rider, vehicleId, riderMode, onboardingFee, deposit, amount, assignedDate, paymentShot, undertaking, pics]
+    [riderId, rider, vehicleId, riderMode, rentalPlan, dailyRent, onboardingFee, deposit, amount, assignedDate, paymentShot, undertaking, pics]
   );
   type AllotmentDraft = typeof draftValue;
 
@@ -125,6 +135,8 @@ export default function NewAllotmentScreen() {
     if (d.rider) setRiderHint(`${d.rider.name}${d.rider.nickname ? ` (${d.rider.nickname})` : ''}`);
     setVehicleId(d.vehicleId);
     setRiderMode(d.riderMode);
+    setRentalPlan(d.rentalPlan);
+    setDailyRent(d.dailyRent);
     setOnboardingFee(d.onboardingFee);
     setDeposit(d.deposit);
     setAmount(d.amount);
@@ -167,7 +179,9 @@ export default function NewAllotmentScreen() {
       setRider(r);
       setRiderId(r.id);
       setRiderHint(`${r.name}${r.nickname ? ` (${r.nickname})` : ''}`);
-      if (r.rental_mode) setRiderMode(r.rental_mode);
+      // rider_mode = business type; rental_mode = billing plan (weekly/monthly).
+      if (r.rider_mode) setRiderMode(r.rider_mode);
+      if (r.rental_mode) setRentalPlan(r.rental_mode);
       if (r.onboarding_fee != null) setOnboardingFee(String(r.onboarding_fee));
       if (r.security_deposit != null) setDeposit(String(r.security_deposit));
     } catch (e) {
@@ -187,6 +201,23 @@ export default function NewAllotmentScreen() {
     if (row) lookupRiderNow(row.mobile);
   };
 
+  // Selecting a vehicle prefills Daily rental from its model rate
+  // (/api/vehicles/lookup now returns rental_per_day). Ops can override it.
+  const selectVehicle = (id: string) => {
+    setVehicleId(id);
+    if (!token) return;
+    const row = available.find((v) => v.id === id);
+    if (!row) return;
+    lookupVehicle(token, row.ev_number)
+      .then((v) => {
+        if (!mounted.current) return;
+        if (v.rental_per_day != null) setDailyRent(String(v.rental_per_day));
+      })
+      .catch(() => {
+        /* non-fatal — ops can still enter Daily rental manually */
+      });
+  };
+
   useEffect(() => {
     if (params.mobile) lookupRiderNow(params.mobile);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -199,10 +230,16 @@ export default function NewAllotmentScreen() {
   const amountNum = Number(amount);
   const amountInvalid = amount.trim().length > 0 && !(amountNum > 0);
   const needsProof = amountNum > 0 && !paymentShot;
+  // Daily rent is mandatory and must be a real positive number.
+  const dailyRentNum = Number(dailyRent);
+  const dailyRentInvalid = dailyRent.trim().length > 0 && !(dailyRentNum > 0);
   const canSubmit =
     !!rider &&
     !!vehicle &&
     !!riderMode &&
+    !!rentalPlan &&
+    dailyRent.trim().length > 0 &&
+    !dailyRentInvalid &&
     amount.trim().length > 0 &&
     !amountInvalid &&
     !needsProof &&
@@ -210,6 +247,10 @@ export default function NewAllotmentScreen() {
 
   const onSubmit = async () => {
     if (!token || !rider || !vehicle) return;
+    if (dailyRentInvalid || !dailyRent.trim()) {
+      setError('Daily rental must be a positive number.');
+      return;
+    }
     if (amountInvalid) {
       setError('Amount collected must be a positive number.');
       return;
@@ -223,7 +264,9 @@ export default function NewAllotmentScreen() {
     const body: NewAllotment = {
       rider_id: rider.id,
       vehicle_id: vehicle.id,
-      rental_mode: riderMode,
+      rider_mode: riderMode,
+      rental_mode: rentalPlan,
+      daily_rent: dailyRent.trim() ? Number(dailyRent) : null,
       onboarding_fee: onboardingFee.trim() ? Number(onboardingFee) : null,
       security_deposit: deposit.trim() ? Number(deposit) : null,
       amount_collected: amount.trim() ? Number(amount) : null,
@@ -282,7 +325,7 @@ export default function NewAllotmentScreen() {
           placeholder={available.length ? 'Select a vehicle' : 'No available vehicles'}
           value={vehicleId}
           options={vehicleOptions}
-          onSelect={setVehicleId}
+          onSelect={selectVehicle}
           emptyText="No available vehicles to allot."
         />
 
@@ -302,6 +345,22 @@ export default function NewAllotmentScreen() {
 
         <Text style={styles.section}>Allotment terms</Text>
         <ChipSelect label="Rider mode" options={RIDER_MODES} value={riderMode} onChange={setRiderMode} />
+        <ChipSelect label="Rental plan" options={RENTAL_PLANS} value={rentalPlan} onChange={setRentalPlan} />
+        <TextField
+          label="Daily rental (₹)"
+          required
+          value={dailyRent}
+          onChangeText={setDailyRent}
+          placeholder="0"
+          keyboardType="numeric"
+          editable={!submitting}
+          tone={dailyRentInvalid ? 'error' : 'default'}
+          hint={
+            dailyRentInvalid
+              ? 'Enter a positive amount'
+              : "Prefilled from the vehicle's model rate — edit if the rider's km/usage deal differs"
+          }
+        />
         <TextField
           label="Onboarding fee (₹)"
           value={onboardingFee}
