@@ -3,9 +3,7 @@
     "name": "movegrid-ops-app",
     "slug": "movegrid-ops-app",
     "version": "1.0.0",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.0",
     "updates": {
       "url": "https://u.expo.dev/8be879d8-471d-4a99-8c4e-4ec831df5a5a"
     },
