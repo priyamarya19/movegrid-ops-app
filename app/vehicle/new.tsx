@@ -38,11 +38,20 @@ export default function NewVehicleScreen() {
   const [price, setPrice] = useState('');
   const [photo, setPhoto] = useState('');
   const [rcBook, setRcBook] = useState('');
+  const [vehiclePhotos, setVehiclePhotos] = useState<string[]>(['']);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const canSubmit = ev.trim().length > 0 && !!oem && chassis.trim().length > 0 && !submitting;
+
+  const setVehiclePhoto = (i: number, key: string) =>
+    setVehiclePhotos((prev) => {
+      const next = [...prev];
+      next[i] = key;
+      return next;
+    });
+  const addVehiclePhoto = () => setVehiclePhotos((prev) => [...prev, '']);
 
   const onSubmit = async () => {
     if (!token || !canSubmit || !oem) return;
@@ -64,6 +73,7 @@ export default function NewVehicleScreen() {
         price: price.trim() ? Number(price) : null,
         vehicle_photo_url: photo || null,
         rc_book_url: rcBook || null,
+        vehicle_photos: vehiclePhotos.filter(Boolean).length ? vehiclePhotos.filter(Boolean) : null,
       });
       toast(`Vehicle ${res.ev_number} added`, 'success');
       router.replace({ pathname: '/vehicle/[id]', params: { id: res.id } });
@@ -105,6 +115,18 @@ export default function NewVehicleScreen() {
         <Text style={styles.section}>Documents</Text>
         <ImageField label="Vehicle photo" folder="vehicles" value={photo} onChange={setPhoto} />
         <ImageField label="RC book" folder="vehicles" value={rcBook} onChange={setRcBook} />
+
+        <Text style={styles.section}>Additional photos</Text>
+        {vehiclePhotos.map((_, i) => (
+          <ImageField
+            key={i}
+            label={`Photo ${i + 1}`}
+            folder="vehicles"
+            value={vehiclePhotos[i]}
+            onChange={(k) => setVehiclePhoto(i, k)}
+          />
+        ))}
+        <Button title="+ Add photo" variant="primary" onPress={addVehiclePhoto} />
 
         {error ? <ErrorBanner message={error} /> : null}
 

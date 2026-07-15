@@ -40,7 +40,6 @@ const CONDITIONS = [
   'Any other issue',
 ].map((c) => ({ label: c, value: c }));
 
-const RETURN_PHOTOS = ['Photo 1', 'Photo 2', 'Photo 3'];
 const today = () => todayISO();
 
 export default function ReturnVehicleScreen() {
@@ -78,7 +77,7 @@ export default function ReturnVehicleScreen() {
   const [settlement, setSettlement] = useState<PaymentProofValue>(emptyPaymentProof);
   const [remarks, setRemarks] = useState('');
   const [conditions, setConditions] = useState<string[]>([]);
-  const [photos, setPhotos] = useState<string[]>(['', '', '']);
+  const [photos, setPhotos] = useState<string[]>(['', '', '', '']);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -125,6 +124,7 @@ export default function ReturnVehicleScreen() {
       next[i] = key;
       return next;
     });
+  const addPhoto = () => setPhotos((prev) => [...prev, '']);
 
   const rentSettled = rentCleared === 'yes';
   const isIssueSwap = issueSwap === 'yes';
@@ -290,9 +290,10 @@ export default function ReturnVehicleScreen() {
         <MultiChipSelect label="Condition on return" options={CONDITIONS} values={conditions} onToggle={toggleCondition} />
 
         <Text style={styles.section}>Return photos</Text>
-        {RETURN_PHOTOS.map((label, i) => (
-          <ImageField key={label} label={label} folder="returns" value={photos[i]} onChange={(k) => setPhoto(i, k)} />
+        {photos.map((_, i) => (
+          <ImageField key={i} label={`Photo ${i + 1}`} folder="returns" value={photos[i]} onChange={(k) => setPhoto(i, k)} />
         ))}
+        <Button title="+ Add photo" variant="primary" onPress={addPhoto} />
 
         {error ? <ErrorBanner message={error} /> : null}
 

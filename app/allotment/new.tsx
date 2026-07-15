@@ -306,6 +306,7 @@ export default function NewAllotmentScreen() {
       next[i] = key;
       return next;
     });
+  const addPic = () => setPics((prev) => [...prev, '']);
 
   return (
     <>
@@ -398,9 +399,16 @@ export default function NewAllotmentScreen() {
         <ImageField label="Signed undertaking" folder="undertakings" value={undertaking} onChange={setUndertaking} />
 
         <Text style={styles.section}>Allotment photos</Text>
-        {ALLOTMENT_PHOTOS.map((label, i) => (
-          <ImageField key={label} label={label} folder="allotments" value={pics[i]} onChange={(k) => setPic(i, k)} />
+        {pics.map((_, i) => (
+          <ImageField
+            key={i}
+            label={ALLOTMENT_PHOTOS[i] ?? `Photo ${i + 1}`}
+            folder="allotments"
+            value={pics[i]}
+            onChange={(k) => setPic(i, k)}
+          />
         ))}
+        <Button title="+ Add photo" variant="primary" onPress={addPic} />
 
         {error ? <ErrorBanner message={error} /> : null}
 

@@ -63,9 +63,18 @@ export default function NewRiderScreen() {
   // check. Advancing is gated on this matching the current input, so an edited
   // Aadhaar can't ride on a stale "clean" result and a never-run check blocks.
   const [checkedAadhaar, setCheckedAadhaar] = useState<string | null>(null);
+  const [additionalPhotos, setAdditionalPhotos] = useState<string[]>(['']);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const idem = useIdempotencyKey();
+
+  const setAdditionalPhoto = (i: number, key: string) =>
+    setAdditionalPhotos((prev) => {
+      const next = [...prev];
+      next[i] = key;
+      return next;
+    });
+  const addAdditionalPhoto = () => setAdditionalPhotos((prev) => [...prev, '']);
 
   // Tracks whether the screen is still mounted, so async handlers don't
   // setState after the user navigates away mid-request.
@@ -174,6 +183,7 @@ export default function NewRiderScreen() {
       family_ref_aadhaar_url: nullify(form.family_ref_aadhaar_url),
       local_ref_name: nullify(form.local_ref_name),
       local_ref_mobile: nullify(form.local_ref_mobile),
+      additional_photos: additionalPhotos.filter(Boolean).length ? additionalPhotos.filter(Boolean) : null,
     };
     try {
       const outcome = await submitOrQueue({
@@ -289,6 +299,18 @@ export default function NewRiderScreen() {
             <TextField label="DL number" value={form.dl_number} onChangeText={(v) => set('dl_number', v)} placeholder="DL-XXXXXXXXXX" autoCapitalize="characters" editable={!submitting} />
             <ImageField label="DL front" folder="kyc" value={form.dl_front_url} onChange={(k) => set('dl_front_url', k)} />
             <ImageField label="DL back" folder="kyc" value={form.dl_back_url} onChange={(k) => set('dl_back_url', k)} />
+
+            <Text style={styles.section}>Additional photos</Text>
+            {additionalPhotos.map((_, i) => (
+              <ImageField
+                key={i}
+                label={`Photo ${i + 1}`}
+                folder="kyc"
+                value={additionalPhotos[i]}
+                onChange={(k) => setAdditionalPhoto(i, k)}
+              />
+            ))}
+            <Button title="+ Add photo" variant="primary" onPress={addAdditionalPhoto} />
 
             <Button title="Next" onPress={() => setStep(1)} disabled={!page1Valid} />
           </>

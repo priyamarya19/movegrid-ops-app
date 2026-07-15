@@ -418,6 +418,7 @@ export type NewRider = {
   family_ref_aadhaar_url?: string | null;
   local_ref_name?: string | null;
   local_ref_mobile?: string | null;
+  additional_photos?: string[] | null;
 };
 
 export function createRider(token: string, body: NewRider, idempotencyKey?: string) {
@@ -624,6 +625,7 @@ export type NewVehicle = {
   price?: number | null;
   vehicle_photo_url?: string | null;
   rc_book_url?: string | null;
+  vehicle_photos?: string[] | null;
 };
 
 export function createVehicle(token: string, body: NewVehicle) {
