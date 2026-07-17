@@ -110,6 +110,18 @@ export default function HomeScreen() {
                   onPress={() => router.push({ pathname: '/riders', params: { filter: 'overdue' } })}
                 />
               </View>
+              <View style={styles.statsRow}>
+                <StatCard
+                  icon="calendar-check-o"
+                  value={formatINR(data.summary.pendingThisWeek)}
+                  label={`Pending this week · ${data.summary.pendingThisWeekRiders} rider${
+                    data.summary.pendingThisWeekRiders === 1 ? '' : 's'
+                  }`}
+                  tone="warning"
+                  onPress={() => router.push({ pathname: '/riders', params: { filter: 'pending' } })}
+                />
+                <View style={styles.statSpacer} />
+              </View>
             </View>
 
             {/* Quick actions */}
@@ -215,6 +227,11 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     gap: space(3),
+  },
+  // Balances the lone "Pending this week" card to half-width, matching the
+  // two-column stat grid above it.
+  statSpacer: {
+    flex: 1,
   },
   sectionTitle: {
     color: colors.text,

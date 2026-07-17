@@ -171,7 +171,10 @@ export type Rider = {
   partial_paid?: number | null;
 };
 
-export function getRiders(token: string, params?: { rent?: 'overdue' | 'due_soon'; status?: string }) {
+export function getRiders(
+  token: string,
+  params?: { rent?: 'overdue' | 'due_soon' | 'pending_week'; status?: string }
+) {
   const qs = new URLSearchParams(params as Record<string, string>).toString();
   return apiFetch<Rider[]>(`/api/riders${qs ? `?${qs}` : ''}`, { token });
 }
@@ -575,6 +578,10 @@ export type RentSummary = {
   overdue: number;
   /** Count of distinct riders currently overdue (was `overdueWeeks` — a summed week count — before the rounding fix; renamed on the backend since it's no longer a week total). */
   overdueRiders: number;
+  /** ₹ total of the current unpaid week across riders who are at most one week behind (overlaps `overdue`). */
+  pendingThisWeek: number;
+  /** Count of riders whose current ongoing week is unpaid and who are at most one week behind. */
+  pendingThisWeekRiders: number;
   pct: number;
 };
 

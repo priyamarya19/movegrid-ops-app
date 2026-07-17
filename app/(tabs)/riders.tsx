@@ -11,25 +11,31 @@ import { formatDate, formatINR, riderStatusPill } from '@/lib/format';
 import { getOverdueRiders, getRiders, type OverdueRider, type Rider } from '@/lib/api';
 import { useApiQuery } from '@/lib/useApiQuery';
 
-type RidersData = { riders: Rider[]; overdue: OverdueRider[]; dueSoon: Rider[] };
+type RidersData = { riders: Rider[]; overdue: OverdueRider[]; dueSoon: Rider[]; pendingWeek: Rider[] };
 
 async function loadRiders(token: string): Promise<RidersData> {
-  const [riders, overdue, dueSoon] = await Promise.all([
+  const [riders, overdue, dueSoon, pendingWeek] = await Promise.all([
     getRiders(token),
     getOverdueRiders(token),
     // Server computes "due soon" as riders whose next rent week starts within
     // today+2 days and is still unpaid — exactly the "Due" tab semantics.
     getRiders(token, { rent: 'due_soon' }),
+    // "Pending this week": riders whose current ongoing week is unpaid AND who
+    // are at most one week behind (the current week is their only unpaid week).
+    // amount_due/period_amount are exactly one week's rent. Intentionally
+    // overlaps the Overdue list — no dedupe.
+    getRiders(token, { rent: 'pending_week' }),
   ]);
-  return { riders, overdue: overdue.riders, dueSoon };
+  return { riders, overdue: overdue.riders, dueSoon, pendingWeek };
 }
 
-type FilterValue = 'all' | 'overdue' | 'due';
+type FilterValue = 'all' | 'overdue' | 'due' | 'pending';
 
 const FILTERS = [
   { label: 'All', value: 'all' },
   { label: 'Overdue', value: 'overdue' },
   { label: 'Due', value: 'due' },
+  { label: 'This week', value: 'pending' },
 ] as const;
 
 export default function RidersScreen() {
@@ -47,6 +53,7 @@ export default function RidersScreen() {
   useEffect(() => {
     if (params.filter === 'overdue') setFilter('overdue');
     else if (params.filter === 'due') setFilter('due');
+    else if (params.filter === 'pending') setFilter('pending');
   }, [params.filter]);
 
   const overdueById = useMemo(
@@ -59,6 +66,14 @@ export default function RidersScreen() {
   const dueSoonById = useMemo(
     () => new Map((data?.dueSoon ?? []).map((r) => [r.id, r])),
     [data?.dueSoon]
+  );
+
+  // Riders whose current ongoing week is unpaid and who are at most one week
+  // behind. Server-side `rent=pending_week` applies that rule; each row's
+  // amount_due/period_amount is exactly one week's rent.
+  const pendingWeekById = useMemo(
+    () => new Map((data?.pendingWeek ?? []).map((r) => [r.id, r])),
+    [data?.pendingWeek]
   );
 
   // Earliest upcoming due date across the "due soon" set — surfaced on the Due
@@ -76,6 +91,7 @@ export default function RidersScreen() {
     let list = data?.riders ?? [];
     if (filter === 'overdue') list = list.filter((r) => overdueById.has(r.id));
     else if (filter === 'due') list = list.filter((r) => dueSoonById.has(r.id));
+    else if (filter === 'pending') list = list.filter((r) => pendingWeekById.has(r.id));
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter(
@@ -92,7 +108,7 @@ export default function RidersScreen() {
       );
     }
     return list;
-  }, [data?.riders, overdueById, dueSoonById, filter, search]);
+  }, [data?.riders, overdueById, dueSoonById, pendingWeekById, filter, search]);
 
   if (loading) return <LoadingState label="Loading riders…" />;
   if (error) return <ErrorState message={error} onRetry={refetch} />;
@@ -109,6 +125,8 @@ export default function RidersScreen() {
                 ? data?.overdue.length ?? 0
                 : f.value === 'due'
                 ? data?.dueSoon.length ?? 0
+                : f.value === 'pending'
+                ? data?.pendingWeek.length ?? 0
                 : undefined;
             return (
               <Pressable
@@ -150,6 +168,11 @@ export default function RidersScreen() {
           // put this rider here — rent_paid_this_week only reflects today, not the
           // specific upcoming week that triggered this filter.
           const dueSoon = filter === 'due' ? dueSoonById.get(item.id) : undefined;
+          // On the This-week tab, surface the single unpaid week's rent
+          // (amount_due/period_amount are exactly one week). Takes precedence
+          // over the overdue subline here since this rider is at most one week
+          // behind and the tab is specifically about the current week.
+          const pendingWeek = filter === 'pending' ? pendingWeekById.get(item.id) : undefined;
           const pill = overdue ? { label: 'Overdue', tone: 'danger' as const } : riderStatusPill(item.status);
           return (
             <Pressable
@@ -164,7 +187,14 @@ export default function RidersScreen() {
                   {item.rider_code}
                   {item.hub_name ? ` · ${item.hub_name}` : ''}
                 </Text>
-                {overdue ? (
+                {pendingWeek ? (
+                  <View style={styles.subRow}>
+                    <FontAwesome name="calendar-check-o" size={11} color={colors.warning} />
+                    <Text style={styles.subText}>
+                      This week · {formatINR(pendingWeek.amount_due ?? pendingWeek.period_amount)}
+                    </Text>
+                  </View>
+                ) : overdue ? (
                   <View style={styles.subRow}>
                     <FontAwesome name="exclamation-triangle" size={11} color={colors.danger} />
                     <Text style={styles.overdueText}>
