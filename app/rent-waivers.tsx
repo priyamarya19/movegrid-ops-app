@@ -91,7 +91,7 @@ export default function RentWaiversScreen() {
           contentContainerStyle={styles.content}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.accent} />}>
           <Text style={styles.subtitle}>
-            Non-functional-day credits from issue-based vehicle swaps — full rent shows owed until you approve.
+            Waivers applied by the team and non-functional-day credits from issue-based swaps — full rent shows owed until you approve.
           </Text>
 
           {(rows ?? []).length === 0 ? (
@@ -113,6 +113,7 @@ export default function RentWaiversScreen() {
                         {r.non_functional_days} day{r.non_functional_days === 1 ? '' : 's'}
                       </Text>
                     </View>
+                    {r.reason ? <Text style={styles.reason}>{r.reason}</Text> : null}
                     <Text style={styles.requestedMeta}>
                       Requested by {r.requested_by ?? '—'} · {formatDate(r.requested_at)}
                     </Text>
@@ -162,6 +163,7 @@ const styles = StyleSheet.create({
   riderName: { color: colors.text, fontSize: 15, fontWeight: '600' },
   meta: { color: colors.textFaint, fontSize: 12 },
   days: { color: colors.text, fontSize: 15, fontWeight: '700' },
+  reason: { color: colors.textMuted, fontSize: 13 },
   requestedMeta: { color: colors.textMuted, fontSize: 12 },
   actions: { flexDirection: 'row', gap: space(3), marginTop: space(1) },
   actionBtn: {

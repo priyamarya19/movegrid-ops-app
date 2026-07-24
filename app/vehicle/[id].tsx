@@ -1,5 +1,5 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View, StyleSheet } from 'react-native';
 
@@ -36,6 +36,7 @@ export default function VehicleDetailScreen() {
 }
 
 function VehicleBody({ data, refreshing, onRefresh }: { data: VehicleDetail; refreshing: boolean; onRefresh: () => void }) {
+  const router = useRouter();
   const { vehicle, assignments } = data;
   const pill = vehicleStatusPill(vehicle.status);
   const model = [vehicle.oem, vehicle.model_name].filter(Boolean).join(' ');
@@ -84,7 +85,10 @@ function VehicleBody({ data, refreshing, onRefresh }: { data: VehicleDetail; ref
         {assignments.length > 0 ? (
           <Card style={styles.listCard}>
             {assignments.slice(0, 10).map((a, i) => (
-              <View key={`${a.rider_id}-${a.assigned_date}-${i}`} style={[styles.row, i > 0 && styles.rowBorder]}>
+              <Pressable
+                key={`${a.rider_id}-${a.assigned_date}-${i}`}
+                onPress={() => router.push({ pathname: '/rider/[id]', params: { id: a.rider_id } })}
+                style={({ pressed }) => [styles.row, i > 0 && styles.rowBorder, pressed && styles.rowPressed]}>
                 <View style={styles.rowMain}>
                   <Text style={styles.riderName}>{a.rider_name}</Text>
                   <Text style={styles.rowMeta}>
@@ -98,7 +102,8 @@ function VehicleBody({ data, refreshing, onRefresh }: { data: VehicleDetail; ref
                   label={a.status === 'active' ? 'Active' : 'Returned'}
                   tone={a.status === 'active' ? 'accent' : 'neutral'}
                 />
-              </View>
+                <FontAwesome name="angle-right" size={18} color={colors.textFaint} />
+              </Pressable>
             ))}
           </Card>
         ) : (
@@ -199,6 +204,7 @@ const styles = StyleSheet.create({
     padding: space(4),
   },
   rowBorder: { borderTopWidth: 1, borderTopColor: colors.border },
+  rowPressed: { opacity: 0.6 },
   rowMain: { flex: 1, gap: 2 },
   riderName: { color: colors.text, fontSize: 15, fontWeight: '600' },
   rowMeta: { color: colors.textFaint, fontSize: 13 },

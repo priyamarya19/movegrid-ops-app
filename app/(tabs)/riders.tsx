@@ -20,10 +20,10 @@ async function loadRiders(token: string): Promise<RidersData> {
     // Server computes "due soon" as riders whose next rent week starts within
     // today+2 days and is still unpaid — exactly the "Due" tab semantics.
     getRiders(token, { rent: 'due_soon' }),
-    // "Pending this week": riders whose current ongoing week is unpaid AND who
-    // are at most one week behind (the current week is their only unpaid week).
-    // amount_due/period_amount are exactly one week's rent. Intentionally
-    // overlaps the Overdue list — no dedupe.
+    // "Pending this week": riders whose CURRENT cycle week (boundary-aligned to
+    // their allotment day) is not fully paid; paid-through-the-boundary riders
+    // are hidden. amount_due/period_amount are exactly one week's rent.
+    // Intentionally overlaps the Overdue list — no dedupe.
     getRiders(token, { rent: 'pending_week' }),
   ]);
   return { riders, overdue: overdue.riders, dueSoon, pendingWeek };
@@ -192,6 +192,10 @@ export default function RidersScreen() {
                     <FontAwesome name="calendar-check-o" size={11} color={colors.warning} />
                     <Text style={styles.subText}>
                       This week · {formatINR(pendingWeek.amount_due ?? pendingWeek.period_amount)}
+                      {pendingWeek.last_due_date
+                        ? ` · since ${formatDate(pendingWeek.last_due_date)} (${Math.max(0, pendingWeek.days_behind ?? 0)}d)`
+                        : ''}
+                      {pendingWeek.next_due_date ? ` · due ${formatDate(pendingWeek.next_due_date)}` : ''}
                     </Text>
                   </View>
                 ) : overdue ? (

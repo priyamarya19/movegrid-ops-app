@@ -182,7 +182,12 @@ function RentLedger({ riderId, riderName }: { riderId: string; riderName: string
   return (
     <>
       {data?.paid_through_date ? (
-        <FieldCard rows={[{ label: 'Paid through', value: formatDate(data.paid_through_date) }]} />
+        <FieldCard
+          rows={[
+            { label: 'Paid through', value: formatDate(data.paid_through_date) },
+            ...(data.next_due_date ? [{ label: 'Next due', value: formatDate(data.next_due_date) }] : []),
+          ]}
+        />
       ) : null}
 
       <Button
@@ -200,6 +205,20 @@ function RentLedger({ riderId, riderName }: { riderId: string; riderName: string
         }
       />
 
+      <Button
+        title="Apply rent waiver"
+        onPress={() =>
+          router.push({
+            pathname: '/rider/waiver-new',
+            params: {
+              riderId,
+              riderName,
+              dailyRate: data?.daily_rent != null ? String(data.daily_rent) : '',
+            },
+          })
+        }
+      />
+
       {weeks.length === 0 ? (
         <Card>
           <Text style={styles.muted}>No rent schedule yet.</Text>
@@ -211,7 +230,9 @@ function RentLedger({ riderId, riderName }: { riderId: string; riderName: string
             return (
               <View key={`${w.week_no}-${w.period_start}`} style={[styles.weekRow, i > 0 && styles.rowBorder]}>
                 <View style={styles.weekMain}>
-                  <Text style={styles.weekTitle}>Due {formatDate(w.due_date)}</Text>
+                  <Text style={styles.weekTitle}>
+                    {w.due_date ? `Due ${formatDate(w.due_date)}` : 'Paid at allotment'}
+                  </Text>
                   <Text style={styles.payMeta}>
                     {formatINR(w.paid)} / {formatINR(w.amount)}
                     {w.ev_number ? ` · ${w.ev_number}` : ''}

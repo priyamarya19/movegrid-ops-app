@@ -160,6 +160,8 @@ export type Rider = {
   // The following are only present when queried with ?rent=overdue|due_soon.
   next_due_date?: string;
   last_due_date?: string;
+  /** Days since paid_through_date — how many days of rent are pending. */
+  days_behind?: number;
   period_days?: number;
   /** Un-rounded single-week rent (daily_rent * 7). Prefer `amount_due` for what's actually owed. */
   period_amount?: number;
@@ -487,7 +489,8 @@ export type RentWeek = {
   week_no: number;
   period_start: string;
   period_end: string;
-  due_date: string;
+  /** Null for a collected week 1 — paid at handover, no followup date. */
+  due_date: string | null;
   amount: number;
   paid: number;
   status: 'Collected' | 'Partial' | 'Overdue' | 'Pending';
@@ -499,6 +502,8 @@ export type RiderRentCycle = {
   weeks: RentWeek[];
   /** Rolling balance date: the rider's rent is settled up to (and including) this date. */
   paid_through_date: string | null;
+  /** When the rider must pay next, per their payment cycle (with the 2-day grace roll). */
+  next_due_date: string | null;
   /** Daily rent for the rider's active assignment; used for the "N days of rent" preview. */
   daily_rent: number | null;
 };
@@ -690,6 +695,8 @@ export type RentWaiverRequest = {
   /** May be absent for very old/malformed rows; render as '—'. */
   ev_number: string | null;
   non_functional_days: number;
+  /** Set on manually-applied waivers; null for auto-raised issue-swap credits. */
+  reason: string | null;
   requested_by: string | null;
   requested_at: string;
 };
@@ -697,6 +704,23 @@ export type RentWaiverRequest = {
 /** Always the pending queue — the endpoint doesn't support filtering by status. */
 export function getRentWaivers(token: string) {
   return apiFetch<RentWaiverRequest[]>('/api/rent-waivers', { token });
+}
+
+/**
+ * Apply for a rent waiver on the rider's active assignment. Enter either days
+ * (fractional allowed — 1.5) or an ₹ amount (converted server-side at the daily
+ * rate). Lands in the same pending approval queue as issue-swap credits.
+ */
+export function createRentWaiver(
+  token: string,
+  riderId: string,
+  body: { days?: number; amount?: number; reason: string }
+) {
+  return apiFetch<{ ok: boolean; days: number }>('/api/rent-waivers', {
+    method: 'POST',
+    body: { rider_id: riderId, ...body },
+    token,
+  });
 }
 
 export function actOnRentWaiver(token: string, id: string, action: 'approve' | 'reject') {
