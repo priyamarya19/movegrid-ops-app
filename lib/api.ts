@@ -118,7 +118,15 @@ export type LoginResponse = {
   role: string;
   name: string;
   token: string;
+  /** Dashboard sections enabled for this user in the app's hamburger menu. */
+  app_pages?: string[];
 };
+
+/** Fresh copy of the signed-in user's own profile — used to pick up app_pages
+ *  changes an admin made after login, without forcing a re-login. */
+export function getMyProfile(token: string) {
+  return apiFetch<{ name: string; role: string; app_pages?: string[] }>('/api/auth/profile', { token });
+}
 
 export function login(email: string, password: string) {
   return apiFetch<LoginResponse>('/api/auth/login', {

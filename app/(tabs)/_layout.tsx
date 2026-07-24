@@ -1,8 +1,9 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs, useRouter, type Href } from 'expo-router';
-import { Pressable } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { colors, space } from '@/constants/theme';
+import { HamburgerMenu } from '@/components/HamburgerMenu';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 import { useOutbox } from '@/lib/useOutbox';
 
@@ -19,6 +20,16 @@ function HeaderAddButton({ href }: { href: Href }) {
     <Pressable onPress={() => router.push(href)} hitSlop={10} style={{ paddingHorizontal: space(4) }}>
       <FontAwesome name="plus" size={20} color={colors.accent} />
     </Pressable>
+  );
+}
+
+// Add-button (when present) + the permission-gated ☰ dashboard-pages menu.
+function HeaderRight({ addHref }: { addHref?: Href }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      {addHref ? <HeaderAddButton href={addHref} /> : null}
+      <HamburgerMenu />
+    </View>
   );
 }
 
@@ -53,7 +64,7 @@ export default function TabLayout() {
         options={{
           title: 'Riders',
           tabBarIcon: ({ color }) => <TabBarIcon name="users" color={color} />,
-          headerRight: () => <HeaderAddButton href="/rider/new" />,
+          headerRight: () => <HeaderRight addHref="/rider/new" />,
         }}
       />
       <Tabs.Screen
@@ -61,7 +72,7 @@ export default function TabLayout() {
         options={{
           title: 'Vehicles',
           tabBarIcon: ({ color }) => <TabBarIcon name="car" color={color} />,
-          headerRight: () => <HeaderAddButton href="/vehicle/new" />,
+          headerRight: () => <HeaderRight addHref="/vehicle/new" />,
         }}
       />
       <Tabs.Screen
@@ -69,6 +80,7 @@ export default function TabLayout() {
         options={{
           title: 'More',
           tabBarIcon: ({ color }) => <TabBarIcon name="ellipsis-h" color={color} />,
+          headerRight: () => <HeaderRight />,
           // Surface unsynced writes waiting in the outbound queue.
           tabBarBadge: pendingSync > 0 ? pendingSync : undefined,
           tabBarBadgeStyle: { backgroundColor: colors.warning, color: '#fff' },

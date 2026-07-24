@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import { Image, Pressable, RefreshControl, ScrollView, Text, View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { HamburgerMenu } from '@/components/HamburgerMenu';
 import { RentWaiverBanner } from '@/components/RentWaiverBanner';
 import { Card } from '@/components/ui/Card';
 import { ErrorState, LoadingState } from '@/components/ui/QueryStates';
@@ -70,6 +71,9 @@ export default function HomeScreen() {
           <View style={styles.brandRow}>
             <Image source={require('@/assets/images/logo-icon.png')} style={styles.logo} resizeMode="contain" />
             <Text style={styles.brand}>MoveGrid</Text>
+            <View style={{ flex: 1, alignItems: 'flex-end' }}>
+              <HamburgerMenu />
+            </View>
           </View>
           <Text style={styles.greeting}>
             {greeting()}

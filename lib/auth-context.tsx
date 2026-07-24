@@ -11,6 +11,8 @@ type AuthUser = {
   name: string;
   role: string;
   email?: string;
+  /** Dashboard sections enabled for this user in the hamburger menu. */
+  appPages?: string[];
 };
 
 type AuthState = {
@@ -22,6 +24,8 @@ type AuthState = {
   sessionExpired: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Re-fetch the profile so admin changes to app_pages apply without re-login. */
+  refreshAppPages: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -54,7 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     const res = await api.login(email.trim(), password);
-    const nextUser: AuthUser = { name: res.name, role: res.role, email: email.trim() };
+    const nextUser: AuthUser = { name: res.name, role: res.role, email: email.trim(), appPages: res.app_pages ?? [] };
     await Promise.all([
       SecureStore.setItemAsync(TOKEN_KEY, res.token),
       SecureStore.setItemAsync(USER_KEY, JSON.stringify(nextUser)),
@@ -84,6 +88,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const refreshAppPages = async () => {
+    if (!token) return;
+    try {
+      const profile = await api.getMyProfile(token);
+      setUser((prev) => {
+        if (!prev) return prev;
+        const next = { ...prev, appPages: profile.app_pages ?? [] };
+        void SecureStore.setItemAsync(USER_KEY, JSON.stringify(next));
+        return next;
+      });
+    } catch {
+      // Non-fatal — the menu just keeps the last-known page list.
+    }
+  };
+
   // Register signOut as the global 401 handler so an expired token anywhere in
   // the API layer bounces the user to /login via the root auth guard.
   useEffect(() => {
@@ -96,7 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ token, user, isLoading, sessionExpired, signIn, signOut }}>
+    <AuthContext.Provider value={{ token, user, isLoading, sessionExpired, signIn, signOut, refreshAppPages }}>
       {children}
     </AuthContext.Provider>
   );
