@@ -514,6 +514,8 @@ export type RiderRentCycle = {
   next_due_date: string | null;
   /** Daily rent for the rider's active assignment; used for the "N days of rent" preview. */
   daily_rent: number | null;
+  /** Exact live balance: unpaid elapsed days × rate − banked credit. 0 = paid up. */
+  outstanding_now: number | null;
 };
 
 export function getRiderRentCycle(token: string, riderId: string) {

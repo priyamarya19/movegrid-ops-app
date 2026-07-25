@@ -186,6 +186,9 @@ function RentLedger({ riderId, riderName }: { riderId: string; riderName: string
           rows={[
             { label: 'Paid through', value: formatDate(data.paid_through_date) },
             ...(data.next_due_date ? [{ label: 'Next due', value: formatDate(data.next_due_date) }] : []),
+            ...(data.outstanding_now != null
+              ? [{ label: 'Outstanding', value: data.outstanding_now > 0 ? formatINR(data.outstanding_now) : '₹0 — paid up' }]
+              : []),
           ]}
         />
       ) : null}
