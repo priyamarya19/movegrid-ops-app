@@ -86,21 +86,36 @@ function RiderBody({ data, refreshing, onRefresh }: { data: RiderDetail; refresh
 
       <Section title="Vehicle">
         {activeAssignment ? (
-          <FieldCard
-            rows={[
-              { label: 'EV number', value: activeAssignment.ev_number },
-              {
-                label: 'Model',
-                value: [activeAssignment.oem, activeAssignment.model_name].filter(Boolean).join(' ') || '—',
-              },
-              { label: 'Assigned on', value: formatDate(activeAssignment.assigned_date) },
-              // Per-tenancy allotment ID (matches the rent sheet's "User ID" column) —
-              // only rendered once the API returns it.
-              ...(activeAssignment.allotment_code
-                ? [{ label: 'Allotment ID', value: activeAssignment.allotment_code }]
-                : []),
-            ]}
-          />
+          <>
+            <FieldCard
+              rows={[
+                { label: 'EV number', value: activeAssignment.ev_number },
+                {
+                  label: 'Model',
+                  value: [activeAssignment.oem, activeAssignment.model_name].filter(Boolean).join(' ') || '—',
+                },
+                { label: 'Assigned on', value: formatDate(activeAssignment.assigned_date) },
+                // Per-tenancy allotment ID (matches the rent sheet's "User ID" column) —
+                // only rendered once the API returns it.
+                ...(activeAssignment.allotment_code
+                  ? [{ label: 'Allotment ID', value: activeAssignment.allotment_code }]
+                  : []),
+              ]}
+            />
+            <Button
+              title="Replace vehicle"
+              onPress={() =>
+                router.push({
+                  pathname: '/rider/replace-vehicle',
+                  params: {
+                    riderId: rider.id,
+                    riderName: rider.name,
+                    currentEv: activeAssignment.ev_number,
+                  },
+                })
+              }
+            />
+          </>
         ) : (
           <Card>
             <Text style={styles.muted}>No active vehicle assignment.</Text>

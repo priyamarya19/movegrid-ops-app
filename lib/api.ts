@@ -206,6 +206,23 @@ export function getVehicles(token: string, params?: { status?: string }) {
   return apiFetch<Vehicle[]>(`/api/vehicles${qs ? `?${qs}` : ''}`, { token });
 }
 
+/**
+ * One-step vehicle replacement on the rider's active tenancy — same allotment
+ * code, paid-through and credit carry over, no onboarding fee. Money is NOT
+ * handled here; collect through the normal rent flow afterwards.
+ */
+export function replaceVehicle(
+  token: string,
+  riderId: string,
+  body: { new_vehicle_id: string; reason: string; non_functional_days?: number; old_vehicle_status?: string }
+) {
+  return apiFetch<{ ok: boolean; waiver_requested: boolean }>(`/api/riders/${riderId}/replace-vehicle`, {
+    method: 'POST',
+    body,
+    token,
+  });
+}
+
 // ---- Rider detail ----
 
 export type RiderDetail = {
