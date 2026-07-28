@@ -705,6 +705,49 @@ export function changePassword(token: string, currentPassword: string, newPasswo
   });
 }
 
+// ---- Collections ----
+
+export type ChaseRow = {
+  rider_id: string;
+  rider_code: string | null;
+  name: string;
+  allotment_code: string | null;
+  days_behind: number;
+  /** "Complete the started weeks" balance — weeks-behind × weekly rent − credit. */
+  outstanding: number;
+  next_due_date: string;
+  sheet_note: string | null;
+};
+
+export type CollectionsChase = {
+  summary: { expectedToDate: number; collected: number; overdue: number; overdueRiders: number; pct: number };
+  chase: ChaseRow[];
+};
+
+export function getCollectionsChase(token: string) {
+  return apiFetch<CollectionsChase>('/api/collections/chase', { token });
+}
+
+export type CollectionPayment = {
+  rider_id: string;
+  rider_code: string;
+  name: string;
+  vehicle_id: string | null;
+  ev_number: string | null;
+  amount_collected: number | string;
+  payment_mode: string | null;
+  payment_date: string;
+  period_start: string | null;
+  period_end: string | null;
+};
+
+export function getCollectionsPayments(token: string, range?: 'today' | 'last7' | 'mtd') {
+  return apiFetch<{ payments: CollectionPayment[]; total: number }>(
+    `/api/collections/payments${range ? `?range=${range}` : ''}`,
+    { token }
+  );
+}
+
 // ---- Rent waiver approvals ----
 //
 // Approving a non_functional_days credit (captured at return time on an

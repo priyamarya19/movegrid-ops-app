@@ -12,7 +12,7 @@ import { useAuth } from '@/lib/auth-context';
 // it stays hidden even if enabled, and lights up automatically once the screen
 // ships and the mapping below gets its route.
 const PAGE_ROUTES: { key: string; label: string; icon: React.ComponentProps<typeof FontAwesome>['name']; href: Href | null }[] = [
-  { key: 'collections', label: 'Collections', icon: 'inr', href: null },
+  { key: 'collections', label: 'Collections', icon: 'inr', href: '/collections' },
   { key: 'allotments', label: 'Allotments', icon: 'exchange', href: null },
   { key: 'hubs', label: 'Hubs', icon: 'building', href: '/hubs' },
   { key: 'leads', label: 'Leads', icon: 'user-plus', href: '/leads' },
