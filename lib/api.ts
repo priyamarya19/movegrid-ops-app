@@ -748,6 +748,36 @@ export function getCollectionsPayments(token: string, range?: 'today' | 'last7' 
   );
 }
 
+// ---- Rider payment claims (verification queue) ----
+
+export type PaymentClaim = {
+  id: string;
+  amount: number;
+  utr: string | null;
+  screenshot_url: string;
+  submitted_at: string;
+  age_hours: number;
+  rider_id: string;
+  rider_name: string;
+  rider_code: string | null;
+  mobile: string;
+  ev_number: string | null;
+  /** The rider's live outstanding — sanity context for the claimed amount. */
+  outstanding_now: number;
+};
+
+export function getPaymentClaims(token: string) {
+  return apiFetch<{ claims: PaymentClaim[] }>('/api/payment-claims', { token });
+}
+
+export function actOnPaymentClaim(token: string, id: string, action: 'approve' | 'reject', reason?: string) {
+  return apiFetch<{ ok: boolean }>(`/api/payment-claims/${id}`, {
+    method: 'PATCH',
+    body: { action, ...(reason ? { reason } : {}) },
+    token,
+  });
+}
+
 // ---- Rent waiver approvals ----
 //
 // Approving a non_functional_days credit (captured at return time on an
