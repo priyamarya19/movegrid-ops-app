@@ -205,6 +205,10 @@ function AppStack() {
       <Stack.Screen name="rent-waivers" options={{ headerShown: true }} />
       <Stack.Screen name="hubs" options={{ headerShown: true }} />
       <Stack.Screen name="leads" options={{ headerShown: true }} />
+      <Stack.Screen name="investors" options={{ headerShown: true }} />
+      <Stack.Screen name="finance" options={{ headerShown: true }} />
+      <Stack.Screen name="audit-logs" options={{ headerShown: true }} />
+      <Stack.Screen name="users" options={{ headerShown: true }} />
       <Stack.Screen name="forms" options={{ headerShown: true }} />
       <Stack.Screen name="settings" options={{ headerShown: true }} />
       <Stack.Screen name="outbox" options={{ headerShown: true }} />

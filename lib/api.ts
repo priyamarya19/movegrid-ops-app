@@ -922,3 +922,155 @@ export type Lead = {
 export function getLeads(token: string) {
   return apiFetch<Lead[]>('/api/leads', { token });
 }
+
+// ---- Investors (admin-only) ----
+
+export type Investor = {
+  id: string;
+  name: string;
+  email: string;
+  mobile: string;
+  total_invested: number | string | null;
+  investment_date: string | null;
+  status: string;
+  bank: string | null;
+  account_number: string | null;
+  ifsc: string | null;
+  bank_status: string | null;
+  /** When earning starts; null until the deal terms are set. */
+  payout_start_date: string | null;
+  payout_term_months: number | null;
+  /** Distinct months with a paid payout (bigint → string from pg). */
+  instalments_paid: number | string | null;
+  roi_percent: number | string | null;
+  scooter_price: number | string | null;
+  vehicle_count: number | string | null;
+  total_paid: number | string | null;
+};
+
+export function getInvestors(token: string) {
+  return apiFetch<Investor[]>('/api/investors', { token });
+}
+
+// ---- Finance (admin-only money-in summary) ----
+
+/** Time buckets, mirroring the dashboard's lib/finance.ts FinanceBuckets. */
+export type FinanceBuckets = {
+  tillDate: number;
+  mtd: number;
+  /** Last month, same calendar-day cutoff. */
+  lmtd: number;
+  today: number;
+  yesterday: number;
+  /** Trailing 7 days. */
+  lastWeek: number;
+};
+
+export type FinanceSummary = {
+  total: FinanceBuckets;
+  bySource: { rent: FinanceBuckets; penalties: FinanceBuckets; feesDeposits: FinanceBuckets };
+};
+
+export type FinanceDetailRow = {
+  date: string;
+  source: 'Rent' | 'Penalty' | 'Onboarding Fee + Deposit';
+  rider_name: string;
+  amount: number;
+};
+
+export function getFinance(token: string) {
+  return apiFetch<{ summary: FinanceSummary; detail: FinanceDetailRow[] }>('/api/finance', { token });
+}
+
+// ---- Bad debts (recovery/return write-offs + later repayments) ----
+
+export type BadDebt = {
+  id: string;
+  source: 'recovery' | 'return';
+  /** Frozen outstanding when the tenancy closed. */
+  original: number;
+  collected_at_close: number;
+  /** Sum of bad_debt_payments recorded after the close. */
+  recovered_later: number;
+  remaining: number;
+  date: string;
+  created_by: string | null;
+  rider_id: string;
+  rider_name: string;
+  rider_code: string | null;
+  mobile: string;
+  vehicle_id: string | null;
+  ev_number: string | null;
+};
+
+export type BadDebtTotals = { gross: number; recovered: number; outstanding: number };
+
+export function getBadDebts(token: string) {
+  return apiFetch<{ debts: BadDebt[]; totals: BadDebtTotals }>('/api/bad-debts', { token });
+}
+
+/** A defaulter pays after close. Backend requires amount > 0, a valid mode and
+ *  proof_url, and caps the amount at the remaining balance. */
+export function recordBadDebtPayment(
+  token: string,
+  badDebtId: string,
+  body: { amount: number; payment_mode: PaymentMode; payment_utr?: string | null; proof_url: string },
+  idempotencyKey?: string
+) {
+  return apiFetch<{ ok: boolean; remaining: number }>(`/api/bad-debts/${badDebtId}/payments`, {
+    method: 'POST',
+    body,
+    token,
+    idempotencyKey,
+  });
+}
+
+// ---- Audit logs (admin-only) ----
+
+export type AuditLog = {
+  id: string;
+  action: string;
+  entity: string | null;
+  entity_id: string | null;
+  actor_id: string | null;
+  /** jsonb blob; writeAudit stores the actor's display name under `actor`. */
+  details: Record<string, unknown> | null;
+  ip_address: string | null;
+  created_at: string;
+};
+
+/** The endpoint paginates via ?page/?pageSize (pageSize capped at 100 server-side);
+ *  there is no `limit` param. Newest first. */
+export function getAuditLogs(token: string, page = 1, pageSize = 100) {
+  return apiFetch<AuditLog[]>(`/api/logs?page=${page}&pageSize=${pageSize}`, { token });
+}
+
+// ---- Users (admin-only management) ----
+
+export type StaffUser = {
+  id: string;
+  name: string;
+  email: string;
+  mobile: string | null;
+  status: string;
+  created_at: string;
+  can_approve_rent_waivers: boolean | null;
+  can_view_allotments: boolean | null;
+  /** Dashboard sections enabled in the app's hamburger menu; null = none. */
+  app_pages: string[] | null;
+  role: string | null;
+};
+
+export function getUsers(token: string) {
+  return apiFetch<StaffUser[]>('/api/users', { token });
+}
+
+/** PATCH accepts partial bodies; sending only { app_pages } updates just the
+ *  menu permissions (whitelisted server-side against the canonical key list). */
+export function updateUserPages(token: string, userId: string, appPages: string[]) {
+  return apiFetch<{ ok: boolean }>(`/api/users/${userId}`, {
+    method: 'PATCH',
+    body: { app_pages: appPages },
+    token,
+  });
+}

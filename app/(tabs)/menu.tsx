@@ -41,11 +41,11 @@ const ROWS: Row[] = [
   { icon: 'exclamation-triangle', label: 'Recovered vehicles', href: '/recoveries' as Href, roles: ALL_OPS },
   { icon: 'building', label: 'Hubs', href: '/hubs', roles: ALL_OPS, pageKey: 'hubs' },
   { icon: 'user-plus', label: 'Leads', href: '/leads', roles: ['admin', 'ops_manager'], pageKey: 'leads' },
-  // Dashboard-parity pages (routes land with the parity build; hidden until then).
-  { icon: 'line-chart', label: 'Investors', href: null, roles: ['admin'], pageKey: 'investors' },
-  { icon: 'bank', label: 'Finance', href: null, roles: ['admin'], pageKey: 'finance' },
-  { icon: 'list-alt', label: 'Audit logs', href: null, roles: ['admin'], pageKey: 'logs' },
-  { icon: 'users', label: 'Users', href: null, roles: ['admin'], pageKey: 'users' },
+  // Dashboard-parity pages.
+  { icon: 'line-chart', label: 'Investors', href: '/investors' as Href, roles: ['admin'], pageKey: 'investors' },
+  { icon: 'bank', label: 'Finance', href: '/finance' as Href, roles: ['admin'], pageKey: 'finance' },
+  { icon: 'list-alt', label: 'Audit logs', href: '/audit-logs' as Href, roles: ['admin'], pageKey: 'logs' },
+  { icon: 'users', label: 'Users', href: '/users' as Href, roles: ['admin'], pageKey: 'users' },
 ];
 
 export default function MenuScreen() {
