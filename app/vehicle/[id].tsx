@@ -1,7 +1,7 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View, StyleSheet } from 'react-native';
+import { useCallback, useState, type ComponentProps } from 'react';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, TextInput, View, StyleSheet } from 'react-native';
 
 import { Card } from '@/components/ui/Card';
 import { FieldCard, Section } from '@/components/ui/Detail';
@@ -9,7 +9,7 @@ import { ErrorState, LoadingState } from '@/components/ui/QueryStates';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { useToast } from '@/components/ui/Toast';
 import { colors, radius, space } from '@/constants/theme';
-import { getVehicle, setVehicleStatus, type VehicleDetail, type VehicleOpsStatus } from '@/lib/api';
+import { getVehicle, getVehicleHistory, setVehicleStatus, type VehicleDetail, type VehicleHistoryEvent, type VehicleOpsStatus } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate, formatINR, vehicleStatusPill } from '@/lib/format';
 import { useApiQuery } from '@/lib/useApiQuery';
@@ -112,7 +112,68 @@ function VehicleBody({ data, refreshing, onRefresh }: { data: VehicleDetail; ref
           </Card>
         )}
       </Section>
+
+      <Section title="Vehicle history">
+        <VehicleHistory vehicleId={vehicle.id} />
+      </Section>
     </ScrollView>
+  );
+}
+
+// What each manual state needs before saving (mirrors the dashboard):
+// under_maintenance / mechanically_ok demand a reason; ready_to_deploy doesn't.
+const REASON_PROMPT: Record<VehicleOpsStatus, { question: string; required: boolean }> = {
+  under_maintenance: { question: "What's the issue?", required: true },
+  mechanically_ok: { question: 'What was checked/fixed?', required: true },
+  ready_to_deploy: { question: 'Any note? (optional)', required: false },
+};
+
+const HISTORY_ICON: Record<VehicleHistoryEvent['kind'], { name: ComponentProps<typeof FontAwesome>['name']; color: string }> = {
+  deployed: { name: 'motorcycle', color: colors.accent },
+  returned: { name: 'reply', color: colors.textMuted },
+  recovered: { name: 'exclamation-triangle', color: colors.danger },
+  status: { name: 'wrench', color: colors.warning },
+};
+
+function historyTitle(e: VehicleHistoryEvent): string {
+  if (e.kind === 'deployed') return `Deployed to ${e.rider_name ?? 'rider'}`;
+  if (e.kind === 'returned') return `Returned by ${e.rider_name ?? 'rider'}`;
+  if (e.kind === 'recovered') return `Recovered from ${e.rider_name ?? 'rider'}`;
+  const from = e.from_status ? e.from_status.replace(/_/g, ' ') : '?';
+  const to = e.to_status ? e.to_status.replace(/_/g, ' ') : '?';
+  return `Status: ${from} \u2192 ${to}`;
+}
+
+function VehicleHistory({ vehicleId }: { vehicleId: string }) {
+  const fetcher = useCallback((token: string) => getVehicleHistory(token, vehicleId), [vehicleId]);
+  const { data, loading, error, refetch } = useApiQuery<{ events: VehicleHistoryEvent[] }>(fetcher, [vehicleId], {
+    cacheKey: `vehicle-history:${vehicleId}`,
+  });
+
+  if (loading) return <Card><ActivityIndicator color={colors.accent} /></Card>;
+  if (error) return <ErrorState message={error} onRetry={refetch} />;
+  const events = data?.events ?? [];
+  if (events.length === 0) return <Card><Text style={styles.muted}>No history yet.</Text></Card>;
+
+  return (
+    <Card style={styles.listCard}>
+      {events.map((e, i) => {
+        const icon = HISTORY_ICON[e.kind] ?? HISTORY_ICON.status;
+        return (
+          <View key={`${e.kind}-${e.at}-${i}`} style={[styles.row, i > 0 && styles.rowBorder]}>
+            <FontAwesome name={icon.name} size={16} color={icon.color} style={styles.historyIcon} />
+            <View style={styles.rowMain}>
+              <Text style={styles.riderName}>{historyTitle(e)}</Text>
+              {e.detail ? <Text style={styles.rowMeta}>{e.detail}</Text> : null}
+              <Text style={styles.rowMeta}>
+                {e.at ? formatDate(e.at) : '\u2014'}
+                {e.actor ? ` \u00b7 ${e.actor}` : ''}
+              </Text>
+            </View>
+          </View>
+        );
+      })}
+    </Card>
   );
 }
 
@@ -134,14 +195,23 @@ function MaintenanceControl({
   const { token } = useAuth();
   const toast = useToast();
   const [saving, setSaving] = useState<string | null>(null);
+  const [pending, setPending] = useState<VehicleOpsStatus | null>(null);
+  const [reason, setReason] = useState('');
   const assigned = status === 'assigned';
 
-  const change = async (value: VehicleOpsStatus) => {
-    if (!token || assigned || value === status || saving) return;
-    setSaving(value);
+  const save = async () => {
+    if (!token || !pending || saving) return;
+    const prompt = REASON_PROMPT[pending];
+    if (prompt.required && !reason.trim()) {
+      toast(prompt.question, 'error');
+      return;
+    }
+    setSaving(pending);
     try {
-      await setVehicleStatus(token, vehicleId, value);
+      await setVehicleStatus(token, vehicleId, pending, reason.trim() || undefined);
       toast('Vehicle status updated', 'success');
+      setPending(null);
+      setReason('');
       onChanged();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Failed to update status', 'error');
@@ -159,23 +229,50 @@ function MaintenanceControl({
   }
 
   return (
-    <View style={styles.statusBtns}>
-      {OPS_STATUS_OPTIONS.map((o) => {
-        const active = o.value === status;
-        return (
-          <Pressable
-            key={o.value}
-            disabled={active || !!saving}
-            onPress={() => change(o.value)}
-            style={[styles.statusBtn, active && styles.statusBtnActive]}>
-            {saving === o.value ? (
-              <ActivityIndicator color={colors.accent} />
-            ) : (
-              <Text style={[styles.statusBtnText, active && styles.statusBtnTextActive]}>{o.label}</Text>
-            )}
-          </Pressable>
-        );
-      })}
+    <View style={{ gap: space(3) }}>
+      <View style={styles.statusBtns}>
+        {OPS_STATUS_OPTIONS.map((o) => {
+          const active = o.value === status;
+          const selected = pending === o.value;
+          return (
+            <Pressable
+              key={o.value}
+              disabled={active || !!saving}
+              onPress={() => { setPending(selected ? null : o.value); setReason(''); }}
+              style={[styles.statusBtn, (active || selected) && styles.statusBtnActive]}>
+              {saving === o.value ? (
+                <ActivityIndicator color={colors.accent} />
+              ) : (
+                <Text style={[styles.statusBtnText, (active || selected) && styles.statusBtnTextActive]}>{o.label}</Text>
+              )}
+            </Pressable>
+          );
+        })}
+      </View>
+      {pending ? (
+        <Card style={{ gap: space(3) }}>
+          <Text style={styles.reasonLabel}>
+            {REASON_PROMPT[pending].question}
+            {REASON_PROMPT[pending].required ? ' *' : ''}
+          </Text>
+          <TextInput
+            value={reason}
+            onChangeText={setReason}
+            placeholder={REASON_PROMPT[pending].required ? 'Required' : 'Optional'}
+            placeholderTextColor={colors.textFaint}
+            multiline
+            style={styles.reasonInput}
+          />
+          <View style={{ flexDirection: 'row', gap: space(3) }}>
+            <Pressable onPress={save} disabled={!!saving} style={styles.reasonSave}>
+              {saving ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.reasonSaveText}>Save</Text>}
+            </Pressable>
+            <Pressable onPress={() => { setPending(null); setReason(''); }} style={styles.reasonCancel}>
+              <Text style={styles.statusBtnText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </Card>
+      ) : null}
     </View>
   );
 }
@@ -222,4 +319,35 @@ const styles = StyleSheet.create({
   statusBtnActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
   statusBtnText: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
   statusBtnTextActive: { color: colors.accent },
+  historyIcon: { width: 22, textAlign: 'center' },
+  reasonLabel: { color: colors.text, fontSize: 14, fontWeight: '600' },
+  reasonInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.bg,
+    color: colors.text,
+    padding: space(3),
+    minHeight: 60,
+    textAlignVertical: 'top',
+    fontSize: 14,
+  },
+  reasonSave: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.full,
+    paddingHorizontal: space(5),
+    paddingVertical: space(2.5),
+    minHeight: 40,
+    justifyContent: 'center',
+  },
+  reasonSaveText: { color: colors.bg, fontSize: 14, fontWeight: '700' },
+  reasonCancel: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.full,
+    paddingHorizontal: space(4),
+    paddingVertical: space(2.5),
+    minHeight: 40,
+    justifyContent: 'center',
+  },
 });

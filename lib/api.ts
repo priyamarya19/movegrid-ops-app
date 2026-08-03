@@ -412,10 +412,12 @@ export type ReturnPayload = {
   condition_on_return?: string[] | null;
   return_photos?: string[] | null;
   return_remarks?: string | null;
-  /** Rent settlement proof — REQUIRED when rent_cleared === true. */
+  /** Rent settlement proof — REQUIRED when rent_cleared === true or amount_collected > 0. */
   rent_settlement_mode?: PaymentMode | null;
   rent_settlement_utr?: string | null;
   rent_settlement_proof_url?: string | null;
+  /** Money collected at handback when dues are pending (₹0 allowed); the remainder becomes bad debt. */
+  amount_collected?: number;
 };
 
 export function returnAllotment(token: string, assignmentId: string, body: ReturnPayload, idempotencyKey?: string) {
@@ -641,12 +643,28 @@ export function getOverdueRiders(token: string) {
 /** Ops-settable maintenance statuses (mirrors dashboard OPS_STATUSES). */
 export type VehicleOpsStatus = 'under_maintenance' | 'mechanically_ok' | 'ready_to_deploy';
 
-export function setVehicleStatus(token: string, vehicleId: string, status: VehicleOpsStatus) {
+export function setVehicleStatus(token: string, vehicleId: string, status: VehicleOpsStatus, reason?: string) {
   return apiFetch<{ success: boolean; status: string }>(`/api/vehicles/${vehicleId}`, {
     method: 'PATCH',
-    body: { status },
+    body: { status, reason: reason || null },
     token,
   });
+}
+
+/** One event in a vehicle's life story (GET /api/vehicles/[id]/history), newest first. */
+export type VehicleHistoryEvent = {
+  kind: 'deployed' | 'returned' | 'recovered' | 'status';
+  at: string | null;
+  from_status: string | null;
+  to_status: string | null;
+  detail: string | null;
+  actor: string | null;
+  rider_name: string | null;
+  rider_id: string | null;
+};
+
+export function getVehicleHistory(token: string, vehicleId: string) {
+  return apiFetch<{ events: VehicleHistoryEvent[] }>(`/api/vehicles/${vehicleId}/history`, { token });
 }
 
 export type NewVehicle = {
@@ -746,6 +764,58 @@ export function getCollectionsPayments(token: string, range?: 'today' | 'last7' 
     `/api/collections/payments${range ? `?range=${range}` : ''}`,
     { token }
   );
+}
+
+// ---- Vehicle recoveries ----
+
+export type Recovery = {
+  id: string;
+  recovered_date: string;
+  reason: string;
+  location: string | null;
+  notes: string | null;
+  photos: string[] | null;
+  /** Frozen at recovery time — the rider's bad-debt figure. */
+  outstanding: number;
+  blacklisted: boolean;
+  recovered_by: string | null;
+  rider_id: string;
+  rider_name: string;
+  rider_code: string | null;
+  mobile: string;
+  vehicle_id: string;
+  ev_number: string;
+};
+
+export function getRecoveries(token: string) {
+  return apiFetch<{ recoveries: Recovery[]; total_outstanding: number }>('/api/recoveries', { token });
+}
+
+/**
+ * Record a physical vehicle recovery from a defaulting rider: closes the
+ * tenancy as a recovery, freezes the outstanding, optionally blacklists.
+ */
+export function recoverVehicle(
+  token: string,
+  riderId: string,
+  body: {
+    reason: 'non_payment' | 'absconded' | 'unreachable' | 'other';
+    location?: string;
+    notes?: string;
+    photos?: string[];
+    blacklist: boolean;
+    /** Money collected at recovery (₹0 allowed); needs mode + proof when > 0. Remainder freezes as bad debt. */
+    amount_collected?: number;
+    payment_mode?: PaymentMode | null;
+    payment_utr?: string | null;
+    payment_proof_url?: string | null;
+  }
+) {
+  return apiFetch<{ ok: boolean; outstanding_at_recovery: number }>(`/api/riders/${riderId}/recover-vehicle`, {
+    method: 'POST',
+    body,
+    token,
+  });
 }
 
 // ---- Rider payment claims (verification queue) ----

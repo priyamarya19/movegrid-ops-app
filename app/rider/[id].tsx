@@ -115,6 +115,20 @@ function RiderBody({ data, refreshing, onRefresh }: { data: RiderDetail; refresh
                 })
               }
             />
+            <Button
+              title="Recover vehicle (defaulter)"
+              variant="danger"
+              onPress={() =>
+                router.push({
+                  pathname: '/rider/recover-vehicle' as never,
+                  params: {
+                    riderId: rider.id,
+                    riderName: rider.name,
+                    currentEv: activeAssignment.ev_number,
+                  },
+                })
+              }
+            />
           </>
         ) : (
           <Card>

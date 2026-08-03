@@ -75,6 +75,7 @@ export default function ReturnVehicleScreen() {
   const [penalty, setPenalty] = useState('');
   const [penaltyDetail, setPenaltyDetail] = useState('');
   const [settlement, setSettlement] = useState<PaymentProofValue>(emptyPaymentProof);
+  const [amountCollected, setAmountCollected] = useState('');
   const [remarks, setRemarks] = useState('');
   const [conditions, setConditions] = useState<string[]>([]);
   const [photos, setPhotos] = useState<string[]>(['', '', '', '']);
@@ -127,6 +128,10 @@ export default function ReturnVehicleScreen() {
   const addPhoto = () => setPhotos((prev) => [...prev, '']);
 
   const rentSettled = rentCleared === 'yes';
+  const rentPending = rentCleared === 'no';
+  const collectedTrim = amountCollected.trim();
+  const collectedNow = rentPending && collectedTrim ? Number(collectedTrim) : 0;
+  const collectedInvalid = rentPending && collectedTrim.length > 0 && !(Number(collectedTrim) >= 0);
   const isIssueSwap = issueSwap === 'yes';
   // A penalty row needs BOTH an amount and a detail, or neither. One alone
   // produces a malformed row server-side.
@@ -140,6 +145,8 @@ export default function ReturnVehicleScreen() {
     !!assignment &&
     !!rentCleared &&
     (!rentSettled || isPaymentProofComplete(settlement)) &&
+    (!(collectedNow > 0) || isPaymentProofComplete(settlement)) &&
+    !collectedInvalid &&
     !penaltyHalfFilled &&
     !penaltyAmtInvalid &&
     !nonFunctionalDaysInvalid &&
@@ -171,9 +178,10 @@ export default function ReturnVehicleScreen() {
       condition_on_return: conditions.length ? conditions : null,
       return_photos: photos.filter(Boolean).length ? photos.filter(Boolean) : null,
       return_remarks: remarks.trim() || null,
-      rent_settlement_mode: rentSettled ? settlement.mode : null,
-      rent_settlement_utr: rentSettled && isOnlineMode(settlement.mode) ? settlement.utr.trim() || null : null,
-      rent_settlement_proof_url: rentSettled ? settlement.proofKey : null,
+      rent_settlement_mode: rentSettled || collectedNow > 0 ? settlement.mode : null,
+      rent_settlement_utr: (rentSettled || collectedNow > 0) && isOnlineMode(settlement.mode) ? settlement.utr.trim() || null : null,
+      rent_settlement_proof_url: rentSettled || collectedNow > 0 ? settlement.proofKey : null,
+      amount_collected: collectedNow,
     };
     try {
       const outcome = await submitOrQueue({
@@ -224,6 +232,21 @@ export default function ReturnVehicleScreen() {
         <ChipSelect label="All rent paid?" options={RENT_CLEARED} value={rentCleared} onChange={setRentCleared} />
         {rentSettled ? (
           <PaymentProof value={settlement} onChange={setSettlement} folder="returns" label="Settlement mode" />
+        ) : null}
+        {rentPending ? (
+          <TextField
+            label="Amount collected now (₹)"
+            value={amountCollected}
+            onChangeText={setAmountCollected}
+            placeholder="0"
+            keyboardType="numeric"
+            editable={!submitting}
+            tone={collectedInvalid ? 'error' : 'default'}
+            hint={collectedInvalid ? 'Enter 0 or more' : '₹0 allowed — whatever remains outstanding becomes bad debt'}
+          />
+        ) : null}
+        {collectedNow > 0 ? (
+          <PaymentProof value={settlement} onChange={setSettlement} folder="returns" label="Collection mode" />
         ) : null}
         <ChipSelect
           label="Vehicle non-functional — rider is being immediately reallotted a replacement?"

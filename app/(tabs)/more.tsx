@@ -32,8 +32,9 @@ const ALL_OPS = ['admin', 'ops_manager', 'hub_incharge'];
 // Role visibility mirrors the dashboard: ops don't see Investors / Audit logs;
 // Leads is admin + ops_manager only (hub_incharge is 403 on the API).
 const SECTIONS: Item[] = [
-  // Typed-routes cache lags new files until the next `expo start`; the route exists.
+  // Typed-routes cache lags new files until the next `expo start`; the routes exist.
   { icon: 'inr', label: 'Payment Claims', href: '/payment-claims' as Href, roles: ALL_OPS },
+  { icon: 'undo', label: 'Recovered Vehicles', href: '/recoveries' as Href, roles: ALL_OPS },
   { icon: 'building', label: 'Hubs', href: '/hubs', roles: ALL_OPS },
   { icon: 'user-plus', label: 'Leads', href: '/leads', roles: ['admin', 'ops_manager'] },
   { icon: 'file-text-o', label: 'Forms', href: '/forms', roles: ALL_OPS },
