@@ -408,7 +408,7 @@ export default function NewAllotmentScreen() {
             onChange={(k) => setPic(i, k)}
           />
         ))}
-        <Button title="+ Add photo" variant="primary" onPress={addPic} />
+        <Button title="+ Add photo" variant="secondary" onPress={addPic} />
 
         {error ? <ErrorBanner message={error} /> : null}
 

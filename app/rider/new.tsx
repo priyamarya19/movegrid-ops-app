@@ -310,7 +310,7 @@ export default function NewRiderScreen() {
                 onChange={(k) => setAdditionalPhoto(i, k)}
               />
             ))}
-            <Button title="+ Add photo" variant="primary" onPress={addAdditionalPhoto} />
+            <Button title="+ Add photo" variant="secondary" onPress={addAdditionalPhoto} />
 
             <Button title="Next" onPress={() => setStep(1)} disabled={!page1Valid} />
           </>

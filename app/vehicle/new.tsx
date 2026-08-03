@@ -34,7 +34,7 @@ export default function NewVehicleScreen() {
   const [iotPartner, setIotPartner] = useState<string | null>(null);
   const [batteryNumber, setBatteryNumber] = useState('');
   const [batteryPartner, setBatteryPartner] = useState<string | null>(null);
-  const [purchaseDate, setPurchaseDate] = useState('');
+  const [purchaseDate, setPurchaseDate] = useState(todayISO());
   const [price, setPrice] = useState('');
   const [photo, setPhoto] = useState('');
   const [rcBook, setRcBook] = useState('');
@@ -109,7 +109,7 @@ export default function NewVehicleScreen() {
         <ChipSelect label="Battery partner" options={BATTERY_PARTNERS} value={batteryPartner} onChange={setBatteryPartner} />
 
         <Text style={styles.section}>Purchase</Text>
-        <DateField label="Purchase date" value={purchaseDate || todayISO()} onChange={setPurchaseDate} />
+        <DateField label="Purchase date" value={purchaseDate} onChange={setPurchaseDate} />
         <TextField label="Purchase price (₹)" value={price} onChangeText={setPrice} placeholder="0" keyboardType="numeric" editable={!submitting} />
 
         <Text style={styles.section}>Documents</Text>
@@ -126,7 +126,7 @@ export default function NewVehicleScreen() {
             onChange={(k) => setVehiclePhoto(i, k)}
           />
         ))}
-        <Button title="+ Add photo" variant="primary" onPress={addVehiclePhoto} />
+        <Button title="+ Add photo" variant="secondary" onPress={addVehiclePhoto} />
 
         {error ? <ErrorBanner message={error} /> : null}
 

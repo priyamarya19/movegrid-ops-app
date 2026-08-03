@@ -1,29 +1,39 @@
 import { ActivityIndicator, Pressable, Text, StyleSheet } from 'react-native';
 
-import { colors, radius, space } from '@/constants/theme';
+import { radius, space } from '@/constants/theme';
+import { useTheme } from '@/lib/theme-context';
 
 type Props = {
   title: string;
   onPress: () => void;
   loading?: boolean;
   disabled?: boolean;
-  variant?: 'primary' | 'danger';
+  /** primary = brand fill; danger = red fill; secondary = outline (auxiliary actions). */
+  variant?: 'primary' | 'danger' | 'secondary';
 };
 
 export function Button({ title, onPress, loading, disabled, variant = 'primary' }: Props) {
+  const { t } = useTheme();
   const isDisabled = disabled || loading;
-  const bg = variant === 'danger' ? colors.danger : colors.accent;
+
+  const fill =
+    variant === 'danger' ? t.danger : variant === 'secondary' ? 'transparent' : t.accent;
+  // Dark-green ink on the brand green — far more legible in sunlight than white.
+  const ink =
+    variant === 'danger' ? '#FFFFFF' : variant === 'secondary' ? t.textMuted : t.onAccent;
+
   return (
     <Pressable
       style={({ pressed }) => [
         styles.button,
-        { backgroundColor: bg },
+        { backgroundColor: fill },
+        variant === 'secondary' && { borderWidth: 1, borderColor: t.border },
         isDisabled && styles.disabled,
-        pressed && !isDisabled && styles.pressed,
+        pressed && !isDisabled && (variant === 'primary' ? { backgroundColor: t.accentPressed } : styles.pressed),
       ]}
       onPress={onPress}
       disabled={isDisabled}>
-      {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.text}>{title}</Text>}
+      {loading ? <ActivityIndicator color={ink} /> : <Text style={[styles.text, { color: ink }]}>{title}</Text>}
     </Pressable>
   );
 }
@@ -31,7 +41,8 @@ export function Button({ title, onPress, loading, disabled, variant = 'primary' 
 const styles = StyleSheet.create({
   button: {
     borderRadius: radius.md,
-    paddingVertical: space(4),
+    paddingVertical: space(3.5),
+    minHeight: 52,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -42,7 +53,6 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   text: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: '700',
   },

@@ -59,7 +59,7 @@ export default function RecoverVehicleScreen() {
     if (!token || !canSubmit) return;
     Alert.alert(
       `Recover ${params.currentEv ?? 'vehicle'}?`,
-      `${params.riderName ?? 'Rider'} ki tenancy RECOVERY ke roop mein band hogi${collectedNow > 0 ? `, ${formatINR(collectedNow)} abhi collect hua` : ''}, baaki bakaya bad debt mein freeze hoga${blacklist ? ', aur rider blacklist honge' : ''}.`,
+      `${params.riderName ?? 'Rider'}'s tenancy will close as a RECOVERY${collectedNow > 0 ? `, with ${formatINR(collectedNow)} collected now` : ''}. The remaining outstanding will be frozen as bad debt${blacklist ? ', and the rider will be blacklisted' : ''}.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -80,7 +80,7 @@ export default function RecoverVehicleScreen() {
                 payment_utr: collectedNow > 0 && isOnlineMode(proof.mode) ? proof.utr.trim() || null : null,
                 payment_proof_url: collectedNow > 0 ? proof.proofKey : null,
               });
-              toast(`Recovery recorded — ${formatINR(res.outstanding_at_recovery)} frozen as dues`, 'success');
+              toast(`Recovery recorded — ${formatINR(res.outstanding_at_recovery)} frozen as bad debt`, 'success');
               router.back();
             } catch (e) {
               setError(e instanceof Error ? e.message : 'Failed to record recovery');
@@ -117,11 +117,11 @@ export default function RecoverVehicleScreen() {
           label={reason === 'other' ? 'Notes *' : 'Notes (optional)'}
           value={notes}
           onChangeText={setNotes}
-          placeholder="Kya hua tha?"
+          placeholder="What happened?"
           multiline
           editable={!submitting}
           tone={notesRequired ? 'error' : 'default'}
-          hint={notesRequired ? "Reason 'Other' ke liye notes zaroori hain" : undefined}
+          hint={notesRequired ? "Notes are required when the reason is 'Other'" : undefined}
         />
 
         <TextField
@@ -132,7 +132,7 @@ export default function RecoverVehicleScreen() {
           keyboardType="numeric"
           editable={!submitting}
           tone={collectedInvalid ? 'error' : 'default'}
-          hint={collectedInvalid ? 'Enter 0 or more' : '₹0 allowed — baaki bakaya bad debt mein jayega'}
+          hint={collectedInvalid ? 'Enter 0 or more' : '₹0 allowed — whatever remains outstanding becomes bad debt'}
         />
         {collectedNow > 0 ? (
           <PaymentProof value={proof} onChange={setProof} folder="recoveries" label="Collection mode" />
@@ -143,15 +143,15 @@ export default function RecoverVehicleScreen() {
 
         <Pressable style={styles.blacklistRow} onPress={() => setBlacklist((v) => !v)}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.blacklistTitle}>Rider ko blacklist karein</Text>
-            <Text style={styles.blacklistSub}>Login aur dobara registration band — Aadhaar/PAN se bhi nahi</Text>
+            <Text style={styles.blacklistTitle}>Blacklist this rider</Text>
+            <Text style={styles.blacklistSub}>Blocks login and re-registration — including with the same Aadhaar/PAN</Text>
           </View>
           <Switch value={blacklist} onValueChange={setBlacklist} trackColor={{ true: colors.danger }} />
         </Pressable>
 
         {error ? <ErrorBanner message={error} /> : null}
         <Button title="Record recovery" onPress={onSubmit} loading={submitting} disabled={!canSubmit} variant="danger" />
-        <Text style={styles.note}>Bakaya recovery dues ke roop mein freeze hoga; vehicle inspection ke through fleet mein wapas aayegi.</Text>
+        <Text style={styles.note}>Outstanding is frozen as recovery dues; the vehicle returns to the fleet after inspection.</Text>
       </FormScreen>
     </>
   );

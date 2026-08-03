@@ -203,7 +203,7 @@ function MaintenanceControl({
     if (!token || !pending || saving) return;
     const prompt = REASON_PROMPT[pending];
     if (prompt.required && !reason.trim()) {
-      toast(prompt.question, 'error');
+      toast('Enter a note about the issue before saving', 'error');
       return;
     }
     setSaving(pending);

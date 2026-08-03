@@ -33,7 +33,7 @@ export default function RecoveriesScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Recovered Vehicles', headerBackTitle: 'Back' }} />
+      <Stack.Screen options={{ title: 'Recovered vehicles', headerBackTitle: 'Back' }} />
       <FlatList
         style={styles.screen}
         data={rows}

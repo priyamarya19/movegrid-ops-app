@@ -37,7 +37,7 @@ export default function ApplyWaiverScreen() {
     num > 0 && dailyRate
       ? mode === 'days'
         ? `≈ ${formatINR(Math.round(num * dailyRate))} of rent waived`
-        : `≈ ${Math.round((num / dailyRate) * 100) / 100} day(s) of rent`
+        : `≈ ${Math.round((num / dailyRate) * 100) / 100} days of rent`
       : null;
 
   const onSubmit = async () => {

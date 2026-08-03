@@ -316,7 +316,7 @@ export default function ReturnVehicleScreen() {
         {photos.map((_, i) => (
           <ImageField key={i} label={`Photo ${i + 1}`} folder="returns" value={photos[i]} onChange={(k) => setPhoto(i, k)} />
         ))}
-        <Button title="+ Add photo" variant="primary" onPress={addPhoto} />
+        <Button title="+ Add photo" variant="secondary" onPress={addPhoto} />
 
         {error ? <ErrorBanner message={error} /> : null}
 

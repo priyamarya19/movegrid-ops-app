@@ -74,7 +74,7 @@ export default function RentWaiversScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Rent Waiver Requests', headerBackTitle: 'Back' }} />
+      <Stack.Screen options={{ title: 'Rent waiver requests', headerBackTitle: 'Back' }} />
       {rows === null && !forbidden && !error ? (
         <LoadingState label="Loading requests…" />
       ) : forbidden ? (
@@ -120,7 +120,16 @@ export default function RentWaiversScreen() {
                     <View style={styles.actions}>
                       <Pressable
                         disabled={busy}
-                        onPress={() => act(r, 'approve')}
+                        onPress={() =>
+                          Alert.alert(
+                            'Approve waiver?',
+                            `Credit ${r.non_functional_days} day${r.non_functional_days === 1 ? '' : 's'} of rent to ${r.rider_name}?`,
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              { text: 'Approve', onPress: () => act(r, 'approve') },
+                            ]
+                          )
+                        }
                         style={({ pressed }) => [styles.actionBtn, styles.approveBtn, pressed && !busy && styles.pressed]}>
                         <Text style={styles.approveText}>{busy ? 'Working…' : 'Approve'}</Text>
                       </Pressable>
