@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Text, StyleSheet } from 'react-native';
+import { Alert, Text, View, StyleSheet } from 'react-native';
 
 import { Button } from '@/components/ui/Button';
 import { DraftBanner } from '@/components/ui/DraftBanner';
@@ -8,11 +8,12 @@ import { ChipSelect, DateField, TextField } from '@/components/ui/Form';
 import { ErrorBanner, FormScreen } from '@/components/ui/FormScreen';
 import { ImageField } from '@/components/ui/ImageField';
 import { SelectField, type SelectOption } from '@/components/ui/SelectField';
-import { space } from '@/constants/theme';
+import { StepDots, WizardNav } from '@/components/ui/Steps';
+import { radius, space } from '@/constants/theme';
 import { ApiError, createAllotment, getRiders, getVehicles, lookupRider, lookupVehicle, type NewAllotment, type Rider, type RiderLookup, type Vehicle } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useTheme } from '@/lib/theme-context';
-import { todayISO, vehicleStatusPill } from '@/lib/format';
+import { formatDate, formatINR, todayISO, vehicleStatusPill } from '@/lib/format';
 import { useIdempotencyKey } from '@/lib/idempotency';
 import { submitOrQueue } from '@/lib/outbox';
 import { isValidMobile } from '@/lib/validation';
@@ -32,6 +33,7 @@ const RENTAL_PLANS = [
 ];
 
 const ALLOTMENT_PHOTOS = ['Front', 'Left side', 'Right side', 'Back', 'Rider on scooter'];
+const STEP_LABELS = ['Who & what', 'Terms & money', 'Documents & photos'];
 // Vehicle statuses that can actually be handed out (not assigned / maintenance / retired).
 const DEPLOYABLE = ['ready_to_deploy'];
 const today = () => todayISO();
@@ -94,6 +96,11 @@ export default function NewAllotmentScreen() {
   const [paymentShot, setPaymentShot] = useState('');
   const [undertaking, setUndertaking] = useState('');
   const [pics, setPics] = useState<string[]>(['', '', '', '', '']);
+
+  // Wizard navigation only — form state stays at this component level so the
+  // draft snapshot / offline queue / idempotency behave exactly as before.
+  const [step, setStep] = useState(1);
+  const [confirming, setConfirming] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -247,6 +254,18 @@ export default function NewAllotmentScreen() {
     !needsProof &&
     !submitting;
 
+  // Per-step gates — each is the slice of `canSubmit` covering that step's
+  // fields, reused verbatim (no new rules).
+  const step1CanNext = !!rider && !!vehicle;
+  const step2CanNext =
+    !!riderMode &&
+    !!rentalPlan &&
+    dailyRent.trim().length > 0 &&
+    !dailyRentInvalid &&
+    amount.trim().length > 0 &&
+    !amountInvalid &&
+    !needsProof;
+
   const onSubmit = async () => {
     if (!token || !rider || !vehicle) return;
     if (dailyRentInvalid || !dailyRent.trim()) {
@@ -297,6 +316,8 @@ export default function NewAllotmentScreen() {
     } catch (e) {
       if (!mounted.current) return;
       setError(e instanceof Error ? e.message : 'Failed to create allotment');
+      // Drop back to the form so the error banner is visible next to the fields.
+      setConfirming(false);
     } finally {
       if (mounted.current) setSubmitting(false);
     }
@@ -310,6 +331,46 @@ export default function NewAllotmentScreen() {
     });
   const addPic = () => setPics((prev) => [...prev, '']);
 
+  // ---- Confirm read-back (rent-collect pattern): one extra tap, zero surprises. ----
+  if (confirming) {
+    return (
+      <>
+        <Stack.Screen options={{ title: 'New allotment' }} />
+        <FormScreen>
+          <View style={[styles.confirmCard, { backgroundColor: t.surface, borderColor: t.border }]}>
+            <Text style={[styles.confirmTitle, { color: t.text }]}>
+              {vehicle?.ev_number ?? '—'} → {rider?.name ?? '—'}
+            </Text>
+            <View style={styles.confirmFacts}>
+              <Fact
+                label="Plan & daily rent"
+                value={`${rentalPlan ?? '—'} · ${formatINR(Number(dailyRent) || 0)}/day`}
+              />
+              <Fact label="Onboarding fee" value={onboardingFee.trim() ? formatINR(Number(onboardingFee) || 0) : '—'} />
+              <Fact label="Security deposit" value={deposit.trim() ? formatINR(Number(deposit) || 0) : '—'} />
+              <Fact
+                label="Amount collected"
+                value={`${formatINR(amountNum || 0)}${paymentShot ? ' · proof attached' : ''}`}
+              />
+              <Fact label="Allotment date" value={formatDate(assignedDate)} />
+            </View>
+          </View>
+
+          <View style={[styles.infoBanner, { backgroundColor: t.accentSoft }]}>
+            <Text style={[styles.infoText, { color: t.accentText }]}>
+              Check the details with the rider before confirming. This creates the tenancy and its rent cycle.
+            </Text>
+          </View>
+
+          {error ? <ErrorBanner message={error} /> : null}
+
+          <Button title="Confirm allotment" onPress={onSubmit} loading={submitting} />
+          <Button title="Edit" variant="secondary" onPress={() => setConfirming(false)} disabled={submitting} />
+        </FormScreen>
+      </>
+    );
+  }
+
   return (
     <>
       <Stack.Screen options={{ title: 'New allotment' }} />
@@ -321,102 +382,133 @@ export default function NewAllotmentScreen() {
             onDiscard={draft.discard}
           />
         ) : null}
-        <Text style={[styles.section, { color: t.accentText }]}>Vehicle</Text>
-        <SelectField
-          label="Available vehicle"
-          required
-          placeholder={available.length ? 'Select a vehicle' : 'No available vehicles'}
-          value={vehicleId}
-          options={vehicleOptions}
-          onSelect={selectVehicle}
-          emptyText="No available vehicles to allot."
-        />
+        <StepDots step={step} total={3} labels={STEP_LABELS} />
 
-        <Text style={[styles.section, { color: t.accentText }]}>Rider</Text>
-        <SelectField
-          label="Rider"
-          required
-          placeholder={pendingRiders.length ? 'Select a rider' : 'No riders available'}
-          value={riderId}
-          options={riderOptions}
-          onSelect={selectRider}
-          emptyText="No riders without a vehicle to allot."
-        />
-        {riderLooking || (riderHint && !rider) ? (
-          <Text style={[styles.riderHint, { color: riderLooking ? t.textFaint : t.dangerText }]}>{riderHint}</Text>
+        {step === 1 ? (
+          <>
+            <Text style={[styles.section, { color: t.accentText }]}>Vehicle</Text>
+            <SelectField
+              label="Available vehicle"
+              required
+              placeholder={available.length ? 'Select a vehicle' : 'No available vehicles'}
+              value={vehicleId}
+              options={vehicleOptions}
+              onSelect={selectVehicle}
+              emptyText="No available vehicles to allot."
+            />
+
+            <Text style={[styles.section, { color: t.accentText }]}>Rider</Text>
+            <SelectField
+              label="Rider"
+              required
+              placeholder={pendingRiders.length ? 'Select a rider' : 'No riders available'}
+              value={riderId}
+              options={riderOptions}
+              onSelect={selectRider}
+              emptyText="No riders without a vehicle to allot."
+            />
+            {riderLooking || (riderHint && !rider) ? (
+              <Text style={[styles.riderHint, { color: riderLooking ? t.textFaint : t.dangerText }]}>{riderHint}</Text>
+            ) : null}
+          </>
         ) : null}
 
-        <Text style={[styles.section, { color: t.accentText }]}>Allotment terms</Text>
-        <ChipSelect label="Rider mode" options={RIDER_MODES} value={riderMode} onChange={setRiderMode} />
-        <ChipSelect label="Rental plan" options={RENTAL_PLANS} value={rentalPlan} onChange={setRentalPlan} />
-        <TextField
-          label="Daily rental (₹)"
-          required
-          value={dailyRent}
-          onChangeText={setDailyRent}
-          placeholder="0"
-          keyboardType="numeric"
-          editable={!submitting}
-          tone={dailyRentInvalid ? 'error' : 'default'}
-          hint={
-            dailyRentInvalid
-              ? 'Enter a positive amount'
-              : "Prefilled from the vehicle's model rate — edit if the rider's km/usage deal differs"
-          }
-        />
-        <TextField
-          label="Onboarding fee (₹)"
-          value={onboardingFee}
-          onChangeText={setOnboardingFee}
-          placeholder="0"
-          keyboardType="numeric"
-          editable={!submitting}
-        />
-        <TextField
-          label="Security deposit (₹)"
-          value={deposit}
-          onChangeText={setDeposit}
-          placeholder="0"
-          keyboardType="numeric"
-          editable={!submitting}
-        />
-        <TextField
-          label="Amount collected (₹)"
-          required
-          value={amount}
-          onChangeText={setAmount}
-          placeholder="0"
-          keyboardType="numeric"
-          editable={!submitting}
-          tone={amountInvalid ? 'error' : 'default'}
-          hint={amountInvalid ? 'Enter a positive amount' : 'Total of onboarding fee + security deposit'}
-        />
-        <DateField label="Allotment date" required value={assignedDate} onChange={setAssignedDate} />
-
-        <Text style={[styles.section, { color: t.accentText }]}>Documents</Text>
-        <ImageField label="Payment screenshot" folder="payments" value={paymentShot} onChange={setPaymentShot} />
-        {needsProof ? (
-          <Text style={[styles.proofHint, { color: t.dangerText }]}>Required — attach the payment screenshot for the amount collected.</Text>
+        {step === 2 ? (
+          <>
+            <Text style={[styles.section, { color: t.accentText }]}>Allotment terms</Text>
+            <ChipSelect label="Rider mode" options={RIDER_MODES} value={riderMode} onChange={setRiderMode} />
+            <ChipSelect label="Rental plan" options={RENTAL_PLANS} value={rentalPlan} onChange={setRentalPlan} />
+            <TextField
+              label="Daily rental (₹)"
+              required
+              value={dailyRent}
+              onChangeText={setDailyRent}
+              placeholder="0"
+              keyboardType="numeric"
+              editable={!submitting}
+              tone={dailyRentInvalid ? 'error' : 'default'}
+              hint={
+                dailyRentInvalid
+                  ? 'Enter a positive amount'
+                  : "Prefilled from the vehicle's model rate — edit if the rider's km/usage deal differs"
+              }
+            />
+            <TextField
+              label="Onboarding fee (₹)"
+              value={onboardingFee}
+              onChangeText={setOnboardingFee}
+              placeholder="0"
+              keyboardType="numeric"
+              editable={!submitting}
+            />
+            <TextField
+              label="Security deposit (₹)"
+              value={deposit}
+              onChangeText={setDeposit}
+              placeholder="0"
+              keyboardType="numeric"
+              editable={!submitting}
+            />
+            <TextField
+              label="Amount collected (₹)"
+              required
+              value={amount}
+              onChangeText={setAmount}
+              placeholder="0"
+              keyboardType="numeric"
+              editable={!submitting}
+              tone={amountInvalid ? 'error' : 'default'}
+              hint={amountInvalid ? 'Enter a positive amount' : 'Total of onboarding fee + security deposit'}
+            />
+            <ImageField label="Payment screenshot" folder="payments" value={paymentShot} onChange={setPaymentShot} />
+            {needsProof ? (
+              <Text style={[styles.proofHint, { color: t.dangerText }]}>Required — attach the payment screenshot for the amount collected.</Text>
+            ) : null}
+            <DateField label="Allotment date" required value={assignedDate} onChange={setAssignedDate} />
+          </>
         ) : null}
-        <ImageField label="Signed undertaking" folder="undertakings" value={undertaking} onChange={setUndertaking} />
 
-        <Text style={[styles.section, { color: t.accentText }]}>Allotment photos</Text>
-        {pics.map((_, i) => (
-          <ImageField
-            key={i}
-            label={ALLOTMENT_PHOTOS[i] ?? `Photo ${i + 1}`}
-            folder="allotments"
-            value={pics[i]}
-            onChange={(k) => setPic(i, k)}
-          />
-        ))}
-        <Button title="+ Add photo" variant="secondary" onPress={addPic} />
+        {step === 3 ? (
+          <>
+            <Text style={[styles.section, { color: t.accentText }]}>Documents</Text>
+            <ImageField label="Signed undertaking" folder="undertakings" value={undertaking} onChange={setUndertaking} />
+
+            <Text style={[styles.section, { color: t.accentText }]}>Allotment photos</Text>
+            {pics.map((_, i) => (
+              <ImageField
+                key={i}
+                label={ALLOTMENT_PHOTOS[i] ?? `Photo ${i + 1}`}
+                folder="allotments"
+                value={pics[i]}
+                onChange={(k) => setPic(i, k)}
+              />
+            ))}
+            <Button title="+ Add photo" variant="secondary" onPress={addPic} />
+          </>
+        ) : null}
 
         {error ? <ErrorBanner message={error} /> : null}
 
-        <Button title="Confirm allotment" onPress={onSubmit} loading={submitting} disabled={!canSubmit} />
+        <WizardNav
+          step={step}
+          total={3}
+          canNext={step === 1 ? step1CanNext : step === 2 ? step2CanNext : canSubmit}
+          onBack={() => setStep((s) => Math.max(1, s - 1))}
+          onNext={step === 3 ? () => setConfirming(true) : () => setStep((s) => Math.min(3, s + 1))}
+          nextLabel={step === 3 ? 'Review allotment' : undefined}
+        />
       </FormScreen>
     </>
+  );
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  const { t } = useTheme();
+  return (
+    <View style={styles.fact}>
+      <Text style={[styles.factLabel, { color: t.textFaint }]}>{label}</Text>
+      <Text style={[styles.factValue, { color: t.text }]}>{value}</Text>
+    </View>
   );
 }
 
@@ -430,4 +522,17 @@ const styles = StyleSheet.create({
   },
   riderHint: { fontSize: 12, marginTop: -space(1) },
   proofHint: { fontSize: 12, marginTop: -space(1) },
+  confirmCard: {
+    borderWidth: 1,
+    borderRadius: radius.xl,
+    padding: space(5),
+    gap: space(3),
+  },
+  confirmTitle: { fontSize: 17, fontWeight: '800', textAlign: 'center' },
+  confirmFacts: { alignSelf: 'stretch', gap: space(2) },
+  fact: { flexDirection: 'row', justifyContent: 'space-between', gap: space(3) },
+  factLabel: { fontSize: 13 },
+  factValue: { fontSize: 13, fontWeight: '600', flexShrink: 1, textAlign: 'right' },
+  infoBanner: { borderRadius: radius.md, padding: space(3) },
+  infoText: { fontSize: 12.5, lineHeight: 18 },
 });
