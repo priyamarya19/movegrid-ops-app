@@ -16,6 +16,15 @@ import { useApiQuery } from '@/lib/useApiQuery';
 // Rider-app payment claims awaiting verification. Approve records the payment
 // through the normal rent flow; reject needs a reason the rider will see.
 export default function PaymentClaimsScreen() {
+  return (
+    <>
+      <Stack.Screen options={{ title: 'Payment claims', headerBackTitle: 'Back' }} />
+      <ClaimsBody />
+    </>
+  );
+}
+
+export function ClaimsBody() {
   const { token } = useAuth();
   const router = useRouter();
   const toast = useToast();
@@ -61,7 +70,6 @@ export default function PaymentClaimsScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Payment Claims', headerBackTitle: 'Back' }} />
       <ScrollView
         style={styles.screen}
         contentContainerStyle={styles.content}

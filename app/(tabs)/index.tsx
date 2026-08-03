@@ -1,49 +1,53 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { Link, useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { useCallback } from 'react';
 import { Image, Pressable, RefreshControl, ScrollView, Text, View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { HamburgerMenu } from '@/components/HamburgerMenu';
 import { RentWaiverBanner } from '@/components/RentWaiverBanner';
-import { Card } from '@/components/ui/Card';
 import { ErrorState, LoadingState } from '@/components/ui/QueryStates';
-import { StatCard } from '@/components/ui/StatCard';
-import { StatusPill } from '@/components/ui/StatusPill';
-import { colors, radius, space } from '@/constants/theme';
-import { getOverdueRiders, getRentSummary, getRiderCounts, getVehicles, type OverdueRider, type RentSummary } from '@/lib/api';
+import { radius, space, type } from '@/constants/theme';
+import {
+  getCollectionsChase,
+  getCollectionsPayments,
+  getPaymentClaims,
+  getRentSummary,
+  getVehicles,
+  type ChaseRow,
+  type RentSummary,
+} from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useTheme } from '@/lib/theme-context';
 import { formatINR } from '@/lib/format';
 import { useApiQuery } from '@/lib/useApiQuery';
+import { useOutbox } from '@/lib/useOutbox';
 
-const QUICK_ACTIONS = [
-  { icon: 'plus-circle', label: 'New allotment', href: '/allotment/new' },
-  { icon: 'undo', label: 'Return vehicle', href: '/allotment/return' },
-  { icon: 'user-plus', label: 'Add rider', href: '/rider/new' },
-] as const;
-
-type Dashboard = {
-  activeRiders: number;
-  vehicles: number;
-  allotments: number;
+type HomeData = {
   summary: RentSummary;
-  overdueRiders: OverdueRider[];
+  collectedToday: number;
+  claimsPending: number;
+  chase: ChaseRow[];
+  fleet: { onRoad: number; ready: number; workshop: number };
 };
 
-async function loadDashboard(token: string): Promise<Dashboard> {
-  const [riderCounts, vehicles, summary, overdue] = await Promise.all([
-    getRiderCounts(token),
-    getVehicles(token),
+async function loadHome(token: string): Promise<HomeData> {
+  const [summary, today, claims, chase, vehicles] = await Promise.all([
     getRentSummary(token),
-    getOverdueRiders(token),
+    getCollectionsPayments(token, 'today').catch(() => ({ payments: [], total: 0 })),
+    getPaymentClaims(token).catch(() => ({ claims: [] })),
+    getCollectionsChase(token).catch(() => ({ summary: { expectedToDate: 0, collected: 0, overdue: 0, overdueRiders: 0, pct: 0 }, chase: [] })),
+    getVehicles(token),
   ]);
-
   return {
-    activeRiders: riderCounts.active,
-    vehicles: vehicles.length,
-    allotments: vehicles.filter((v) => v.status === 'assigned' || v.assigned_rider).length,
     summary,
-    overdueRiders: overdue.riders,
+    collectedToday: Number(today.total) || 0,
+    claimsPending: claims.claims.length,
+    chase: chase.chase,
+    fleet: {
+      onRoad: vehicles.filter((v) => v.status === 'assigned').length,
+      ready: vehicles.filter((v) => v.status === 'ready_to_deploy' || v.status === 'available').length,
+      workshop: vehicles.filter((v) => v.status === 'under_maintenance' || v.status === 'mechanically_ok').length,
+    },
   };
 }
 
@@ -56,35 +60,48 @@ function greeting(): string {
 
 export default function HomeScreen() {
   const { user } = useAuth();
+  const { t } = useTheme();
   const router = useRouter();
-  const fetcher = useCallback((token: string) => loadDashboard(token), []);
-  const { data, loading, refreshing, error, refetch } = useApiQuery<Dashboard>(fetcher, [], { cacheKey: 'home' });
+  const { count: pendingSync } = useOutbox();
+  const fetcher = useCallback((token: string) => loadHome(token), []);
+  const { data, loading, refreshing, error, refetch } = useApiQuery<HomeData>(fetcher, [], { cacheKey: 'home-v2' });
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: t.bg }]} edges={['top']}>
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refetch} tintColor={colors.accent} />}>
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refetch} tintColor={t.accent} />}>
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.brandRow}>
             <Image source={require('@/assets/images/logo-icon.png')} style={styles.logo} resizeMode="contain" />
-            <Text style={styles.brand}>MoveGrid</Text>
-            <View style={{ flex: 1, alignItems: 'flex-end' }}>
-              <HamburgerMenu />
-            </View>
+            <Text style={[styles.brand, { color: t.text }]}>MoveGrid</Text>
           </View>
-          <Text style={styles.greeting}>
+          <Text style={[styles.greeting, { color: t.text }]}>
             {greeting()}
             {user?.name ? `, ${user.name.split(' ')[0]}` : ''}
           </Text>
-          <Text style={styles.subtitle}>Here's your fleet at a glance</Text>
         </View>
 
-        {/* Self-detecting: renders nothing unless this user can approve rent
-            waivers AND there are pending requests. Independent of the dashboard
-            data load below. */}
+        {/* Offline strip — only when queued writes are waiting. */}
+        {pendingSync > 0 ? (
+          <Pressable
+            onPress={() => router.push('/outbox')}
+            style={({ pressed }) => [
+              styles.offlineStrip,
+              { backgroundColor: t.warningSoft, borderColor: t.warning },
+              pressed && styles.pressed,
+            ]}>
+            <FontAwesome name="cloud-upload" size={14} color={t.warningText} />
+            <Text style={[styles.offlineText, { color: t.warningText }]}>
+              {pendingSync} {pendingSync === 1 ? 'entry' : 'entries'} saved on phone — waiting for network
+            </Text>
+            <Text style={[styles.offlineView, { color: t.warningText }]}>View ›</Text>
+          </Pressable>
+        ) : null}
+
+        {/* Renders only for approvers with pending waiver requests. */}
         <RentWaiverBanner />
 
         {loading ? (
@@ -93,92 +110,89 @@ export default function HomeScreen() {
           <ErrorState message={error} onRetry={refetch} />
         ) : data ? (
           <>
-            {/* Stats */}
-            <View style={styles.statsGrid}>
-              <View style={styles.statsRow}>
-                <StatCard icon="users" value={data.activeRiders} label="Active riders" onPress={() => router.push('/riders')} />
-                <StatCard icon="car" value={data.vehicles} label="Vehicles" onPress={() => router.push('/vehicles')} />
-              </View>
-              <View style={styles.statsRow}>
-                <StatCard
-                  icon="check-circle"
-                  value={`${data.summary.pct}%`}
-                  label="Rent collected MTD"
-                  onPress={() => router.push('/riders')}
-                />
-                <StatCard
-                  icon="exclamation-triangle"
-                  value={formatINR(data.summary.overdue)}
-                  label={`Overdue · ${data.summary.overdueRiders} rider${data.summary.overdueRiders === 1 ? '' : 's'}`}
-                  tone="danger"
-                  onPress={() => router.push({ pathname: '/riders', params: { filter: 'overdue' } })}
-                />
-              </View>
-              <View style={styles.statsRow}>
-                <StatCard
-                  icon="calendar-check-o"
-                  value={formatINR(data.summary.pendingThisWeek)}
-                  label={`Pending this week · ${data.summary.pendingThisWeekRiders} rider${
-                    data.summary.pendingThisWeekRiders === 1 ? '' : 's'
-                  }`}
-                  tone="warning"
-                  onPress={() => router.push({ pathname: '/riders', params: { filter: 'pending' } })}
-                />
-                <View style={styles.statSpacer} />
-              </View>
+            {/* Money first — this is a money day. */}
+            <View style={styles.statsRow}>
+              <MoneyCard
+                label="Collected today"
+                value={formatINR(data.collectedToday)}
+                color={t.money}
+                onPress={() => router.push('/(tabs)/money' as Href)}
+              />
+              <MoneyCard
+                label={`To collect · ${data.summary.overdueRiders + data.summary.pendingThisWeekRiders} riders`}
+                value={formatINR(data.summary.overdue)}
+                color={data.summary.overdue > 0 ? t.dangerText : t.money}
+                onPress={() => router.push('/(tabs)/money' as Href)}
+              />
+            </View>
+            <View style={styles.statsRow}>
+              <SmallStat
+                label="Due this week"
+                value={formatINR(data.summary.pendingThisWeek)}
+                onPress={() => router.push({ pathname: '/riders', params: { filter: 'pending' } })}
+              />
+              <SmallStat
+                label="Claims waiting"
+                value={String(data.claimsPending)}
+                highlight={data.claimsPending > 0}
+                onPress={() => router.push('/payment-claims' as Href)}
+              />
             </View>
 
-            {/* Quick actions */}
-            <Text style={styles.sectionTitle}>Quick actions</Text>
-            <View style={styles.actionsRow}>
-              {QUICK_ACTIONS.map((a) => (
-                <Pressable
-                  key={a.label}
-                  style={({ pressed }) => [styles.action, pressed && styles.pressed]}
-                  onPress={() => router.push(a.href)}>
-                  <View style={styles.actionIcon}>
-                    <FontAwesome name={a.icon} size={18} color={colors.accent} />
-                  </View>
-                  <Text style={styles.actionLabel}>{a.label}</Text>
-                </Pressable>
-              ))}
+            {/* Fleet now */}
+            <Text style={[styles.sectionTitle, { color: t.text }]}>Fleet now</Text>
+            <View style={styles.statsRow}>
+              <SmallStat label="On road" value={String(data.fleet.onRoad)} onPress={() => router.push('/fleet' as Href)} />
+              <SmallStat label="Ready" value={String(data.fleet.ready)} onPress={() => router.push('/fleet' as Href)} />
+              <SmallStat label="Workshop" value={String(data.fleet.workshop)} onPress={() => router.push('/fleet' as Href)} />
             </View>
 
-            {/* Needs attention */}
+            {/* Collect next — worst three, one tap to record. */}
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Needs attention</Text>
-              <Link href="/riders" asChild>
-                <Pressable hitSlop={8}>
-                  <Text style={styles.link}>View all</Text>
-                </Pressable>
-              </Link>
+              <Text style={[styles.sectionTitle, { color: t.text }]}>Collect next</Text>
+              <Pressable hitSlop={8} onPress={() => router.push('/(tabs)/money' as Href)}>
+                <Text style={[styles.link, { color: t.accentText }]}>View all</Text>
+              </Pressable>
             </View>
-            <Card style={styles.listCard}>
-              {data.overdueRiders.length === 0 ? (
+            <View style={[styles.listCard, { backgroundColor: t.surface, borderColor: t.border, shadowColor: t.shadow }]}>
+              {data.chase.length === 0 ? (
                 <View style={styles.allClear}>
-                  <FontAwesome name="check-circle" size={18} color={colors.accent} />
-                  <Text style={styles.allClearText}>All caught up — no overdue rents.</Text>
+                  <FontAwesome name="check-circle" size={18} color={t.accentText} />
+                  <Text style={[styles.allClearText, { color: t.textMuted }]}>All caught up — no rent overdue.</Text>
                 </View>
               ) : (
-                data.overdueRiders.slice(0, 8).map((r, i) => (
+                data.chase.slice(0, 3).map((r, i) => (
                   <Pressable
                     key={r.rider_id}
-                    style={({ pressed }) => [styles.row, i > 0 && styles.rowBorder, pressed && styles.pressed]}
+                    style={({ pressed }) => [
+                      styles.row,
+                      i > 0 && { borderTopWidth: 1, borderTopColor: t.border },
+                      pressed && styles.pressed,
+                    ]}
                     onPress={() => router.push({ pathname: '/rider/[id]', params: { id: r.rider_id } })}>
-                    <View style={styles.avatar}>
-                      <Text style={styles.avatarText}>{r.name?.charAt(0) ?? '?'}</Text>
+                    <View style={[styles.avatar, { backgroundColor: t.accentSoft }]}>
+                      <Text style={[styles.avatarText, { color: t.accentText }]}>{r.name?.charAt(0) ?? '?'}</Text>
                     </View>
                     <View style={styles.rowMain}>
-                      <Text style={styles.rowName}>{r.name}</Text>
-                      <Text style={styles.rowMeta}>
-                        {r.overdue_weeks} wk · {formatINR(r.overdue_amount)}
+                      <Text style={[styles.rowName, { color: t.text }]}>{r.name}</Text>
+                      <Text style={[styles.rowMeta, { color: t.dangerText }]}>
+                        {formatINR(r.outstanding)} · {r.days_behind}d behind
                       </Text>
                     </View>
-                    <StatusPill label="Overdue" tone="danger" />
+                    <Pressable
+                      onPress={() =>
+                        router.push({ pathname: '/rent-collect', params: { riderId: r.rider_id, riderName: r.name } })
+                      }
+                      style={({ pressed }) => [
+                        styles.collectBtn,
+                        { backgroundColor: pressed ? t.accentPressed : t.accent },
+                      ]}>
+                      <Text style={[styles.collectBtnText, { color: t.onAccent }]}>Collect</Text>
+                    </Pressable>
                   </Pressable>
                 ))
               )}
-            </Card>
+            </View>
           </>
         ) : null}
       </ScrollView>
@@ -186,103 +200,102 @@ export default function HomeScreen() {
   );
 }
 
+function MoneyCard({ label, value, color, onPress }: { label: string; value: string; color: string; onPress: () => void }) {
+  const { t } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.moneyCard,
+        { backgroundColor: t.surface, borderColor: t.border, shadowColor: t.shadow },
+        pressed && styles.pressed,
+      ]}>
+      <Text style={[styles.moneyLabel, { color: t.textMuted }]} numberOfLines={1}>
+        {label}
+      </Text>
+      <Text style={[styles.moneyValue, { color }]} numberOfLines={1} adjustsFontSizeToFit>
+        {value}
+      </Text>
+    </Pressable>
+  );
+}
+
+function SmallStat({ label, value, highlight, onPress }: { label: string; value: string; highlight?: boolean; onPress: () => void }) {
+  const { t } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.smallStat,
+        { backgroundColor: t.surface, borderColor: highlight ? t.warning : t.border, shadowColor: t.shadow },
+        pressed && styles.pressed,
+      ]}>
+      <Text style={[styles.smallValue, { color: highlight ? t.warningText : t.text }]}>{value}</Text>
+      <Text style={[styles.smallLabel, { color: t.textMuted }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-  content: {
-    padding: space(4),
-    gap: space(5),
-    paddingBottom: space(8),
-  },
-  header: {
-    gap: space(1),
-  },
-  brandRow: {
+  safe: { flex: 1 },
+  content: { padding: space(4), gap: space(4), paddingBottom: space(8) },
+  header: { gap: space(1) },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: space(2), marginBottom: space(2) },
+  logo: { width: 30, height: 30 },
+  brand: { fontSize: 17, fontWeight: '700', letterSpacing: -0.3 },
+  greeting: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+  offlineStrip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space(2),
-    marginBottom: space(2),
+    borderRadius: radius.md,
+    borderWidth: 1,
+    paddingVertical: space(2.5),
+    paddingHorizontal: space(3),
   },
-  logo: {
-    width: 30,
-    height: 30,
-  },
-  brand: {
-    color: colors.text,
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
-  greeting: {
-    color: colors.text,
-    fontSize: 28,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    color: colors.textMuted,
-    fontSize: 15,
-  },
-  statsGrid: {
-    gap: space(3),
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: space(3),
-  },
-  // Balances the lone "Pending this week" card to half-width, matching the
-  // two-column stat grid above it.
-  statSpacer: {
+  offlineText: { flex: 1, fontSize: 12.5, fontWeight: '600' },
+  offlineView: { fontSize: 12.5, fontWeight: '700' },
+  statsRow: { flexDirection: 'row', gap: space(3) },
+  moneyCard: {
     flex: 1,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    padding: space(4),
+    gap: space(1),
+    minHeight: 84,
+    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 6,
   },
-  sectionTitle: {
-    color: colors.text,
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  link: {
-    color: colors.accent,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: space(3),
-  },
-  action: {
+  moneyLabel: { fontSize: type.caption, fontWeight: '600' },
+  moneyValue: { fontSize: type.moneyHero - 4, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  smallStat: {
     flex: 1,
-    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: space(4),
-    alignItems: 'center',
-    gap: space(2),
+    padding: space(3.5),
+    gap: 2,
+    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 6,
   },
-  actionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.md,
-    backgroundColor: colors.accentSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionLabel: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
+  smallValue: { fontSize: 20, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  smallLabel: { fontSize: type.caption },
+  sectionTitle: { fontSize: type.subtitle, fontWeight: '800', letterSpacing: -0.3 },
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  link: { fontSize: 14, fontWeight: '700' },
   listCard: {
-    padding: 0,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    overflow: 'hidden',
+    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 6,
   },
   allClear: {
     flexDirection: 'row',
@@ -291,47 +304,26 @@ const styles = StyleSheet.create({
     gap: space(2),
     padding: space(5),
   },
-  allClearText: {
-    color: colors.textMuted,
-    fontSize: 14,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space(3),
-    padding: space(4),
-  },
-  rowBorder: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  pressed: {
-    opacity: 0.6,
-  },
+  allClearText: { fontSize: 14 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space(3), padding: space(3.5) },
+  pressed: { opacity: 0.6 },
   avatar: {
     width: 38,
     height: 38,
     borderRadius: radius.full,
-    backgroundColor: colors.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: {
-    color: colors.accent,
-    fontWeight: '700',
-    fontSize: 15,
+  avatarText: { fontWeight: '700', fontSize: 15 },
+  rowMain: { flex: 1, gap: 2 },
+  rowName: { fontSize: 15, fontWeight: '700' },
+  rowMeta: { fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  collectBtn: {
+    paddingHorizontal: space(4),
+    paddingVertical: space(2.5),
+    borderRadius: radius.full,
+    minHeight: 38,
+    justifyContent: 'center',
   },
-  rowMain: {
-    flex: 1,
-    gap: 2,
-  },
-  rowName: {
-    color: colors.text,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  rowMeta: {
-    color: colors.textFaint,
-    fontSize: 13,
-  },
+  collectBtnText: { fontSize: 13.5, fontWeight: '800' },
 });

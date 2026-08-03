@@ -34,7 +34,7 @@ const RANGES = [
 ] as const;
 
 const daysColor = (d: number) =>
-  d >= 15 ? colors.danger : d >= 8 ? colors.danger : d >= 1 ? colors.warning : colors.accent;
+  d >= 8 ? colors.danger : d >= 1 ? colors.warning : colors.accent;
 
 export default function CollectionsScreen() {
   const [tab, setTab] = useState<'chase' | 'payments'>('chase');
@@ -63,7 +63,7 @@ export default function CollectionsScreen() {
   );
 }
 
-function ChaseTab() {
+export function ChaseTab() {
   const router = useRouter();
   const fetcher = useCallback((t: string) => getCollectionsChase(t), []);
   const { data, loading, refreshing, error, refetch } = useApiQuery<CollectionsChase>(fetcher, [], {
@@ -169,7 +169,13 @@ function ChaseTab() {
             <Text style={styles.amount}>{formatINR(Math.round(Number(item.outstanding)))}</Text>
             <Text style={[styles.days, { color: daysColor(item.days_behind) }]}>{item.days_behind}d behind</Text>
           </View>
-          <FontAwesome name="angle-right" size={18} color={colors.textFaint} />
+          <Pressable
+            onPress={() =>
+              router.push({ pathname: '/rent-collect', params: { riderId: item.rider_id, riderName: item.name } })
+            }
+            style={({ pressed }) => [styles.collectBtn, pressed && { backgroundColor: '#00A878' }]}>
+            <Text style={styles.collectBtnText}>Collect</Text>
+          </Pressable>
         </Pressable>
       )}
       ListFooterComponent={
@@ -183,7 +189,7 @@ function ChaseTab() {
   );
 }
 
-function PaymentsTab() {
+export function PaymentsTab() {
   const router = useRouter();
   const [range, setRange] = useState<(typeof RANGES)[number]['key']>('last7');
   const fetcher = useCallback(
@@ -338,4 +344,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   loadMoreText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
+  collectBtn: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.full,
+    paddingHorizontal: space(3.5),
+    minHeight: 38,
+    justifyContent: 'center',
+  },
+  collectBtnText: { color: '#06281F', fontSize: 13, fontWeight: '800' },
 });

@@ -1,5 +1,5 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, Text, View, StyleSheet } from 'react-native';
 
@@ -51,6 +51,7 @@ export default function VehiclesScreen() {
 
   return (
     <View style={styles.screen}>
+      <Stack.Screen options={{ title: 'Fleet', headerBackTitle: 'Back' }} />
       <View style={styles.controls}>
         <SearchBar value={search} onChangeText={setSearch} placeholder="Search EV no., model, rider" />
         <View style={styles.chips}>

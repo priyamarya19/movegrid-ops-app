@@ -1,7 +1,7 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, Text, View, StyleSheet } from 'react-native';
+import { Pressable, ScrollView, Text, View, StyleSheet } from 'react-native';
 
 import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/Form';
@@ -10,6 +10,7 @@ import { ErrorState, LoadingState } from '@/components/ui/QueryStates';
 import { RemoteImage } from '@/components/ui/RemoteImage';
 import { useToast } from '@/components/ui/Toast';
 import { colors, radius, space } from '@/constants/theme';
+import { useTheme } from '@/lib/theme-context';
 import { changePassword, getProfile, updateProfile, type Profile } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { roleLabel } from '@/lib/roles';
@@ -120,6 +121,9 @@ function SettingsBody({ profile, onChanged }: { profile: Profile; onChanged: () 
       </View>
       <Text style={styles.hint}>Name, mobile, and email can only be changed by an admin on the dashboard.</Text>
 
+      <Text style={styles.section}>Appearance</Text>
+      <ThemeToggleRow />
+
       <Text style={styles.section}>Change password</Text>
       <TextField label="Current password" value={current} onChangeText={setCurrent} secureTextEntry editable={!changingPw} />
       <TextField label="New password" value={next} onChangeText={setNext} secureTextEntry editable={!changingPw} hint="At least 8 characters" />
@@ -135,7 +139,50 @@ function SettingsBody({ profile, onChanged }: { profile: Profile; onChanged: () 
   );
 }
 
+// Light (neo-minimal, sunlight default) vs dark (ambient night mode).
+// Persisted per device; the whole app re-skins live as screens migrate to useTheme.
+function ThemeToggleRow() {
+  const { mode, setMode } = useTheme();
+  return (
+    <View style={styles.themeRow}>
+      {(
+        [
+          { key: 'light', label: 'Light', icon: 'sun-o', hint: 'Best in sunlight' },
+          { key: 'dark', label: 'Dark', icon: 'moon-o', hint: 'Night shifts' },
+        ] as const
+      ).map((o) => {
+        const active = mode === o.key;
+        return (
+          <Pressable
+            key={o.key}
+            onPress={() => setMode(o.key)}
+            style={[styles.themeOption, active && styles.themeOptionActive]}>
+            <FontAwesome name={o.icon} size={18} color={active ? colors.accent : colors.textMuted} />
+            <Text style={[styles.themeLabel, active && styles.themeLabelActive]}>{o.label}</Text>
+            <Text style={styles.themeHint}>{o.hint}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  themeRow: { flexDirection: 'row', gap: space(3) },
+  themeOption: {
+    flex: 1,
+    alignItems: 'center',
+    gap: space(1),
+    paddingVertical: space(4),
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  themeOptionActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  themeLabel: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
+  themeLabelActive: { color: colors.text },
+  themeHint: { color: colors.textFaint, fontSize: 11 },
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: space(4), gap: space(3), paddingBottom: space(10) },
   identity: { alignItems: 'center', gap: space(2), marginBottom: space(2) },

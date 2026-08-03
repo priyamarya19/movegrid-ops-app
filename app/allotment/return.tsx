@@ -1,4 +1,4 @@
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Text, StyleSheet } from 'react-native';
 
@@ -197,7 +197,7 @@ export default function ReturnVehicleScreen() {
           ? `${assignment.ev_number} marked as returned.`
           : `No connection — the return for ${assignment.ev_number} is saved and will sync when back online.`;
       Alert.alert(outcome.status === 'sent' ? 'Vehicle returned' : 'Saved offline', message, [
-        { text: 'OK', onPress: () => router.replace('/(tabs)/vehicles') },
+        { text: 'OK', onPress: () => router.replace('/fleet' as Href) },
       ]);
     } catch (e) {
       if (!mounted.current) return;

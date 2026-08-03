@@ -1,10 +1,12 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { Tabs, useRouter, type Href } from 'expo-router';
-import { Pressable, View } from 'react-native';
+import { Tabs } from 'expo-router';
+import { useState } from 'react';
+import { Pressable, View, StyleSheet } from 'react-native';
 
-import { colors, space } from '@/constants/theme';
-import { HamburgerMenu } from '@/components/HamburgerMenu';
+import { ActionSheet } from '@/components/ActionSheet';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+import { radius, space } from '@/constants/theme';
+import { useTheme } from '@/lib/theme-context';
 import { useOutbox } from '@/lib/useOutbox';
 
 function TabBarIcon(props: {
@@ -14,78 +16,97 @@ function TabBarIcon(props: {
   return <FontAwesome size={22} {...props} />;
 }
 
-function HeaderAddButton({ href }: { href: Href }) {
-  const router = useRouter();
-  return (
-    <Pressable onPress={() => router.push(href)} hitSlop={10} style={{ paddingHorizontal: space(4) }}>
-      <FontAwesome name="plus" size={20} color={colors.accent} />
-    </Pressable>
-  );
-}
-
-// Add-button (when present) + the permission-gated ☰ dashboard-pages menu.
-function HeaderRight({ addHref }: { addHref?: Href }) {
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-      {addHref ? <HeaderAddButton href={addHref} /> : null}
-      <HamburgerMenu />
-    </View>
-  );
-}
-
+// v2 tab bar: Home · Money · ＋ (raised action sheet) · Riders · Menu.
+// Frequent money work lives under the thumb; everything infrequent is in Menu.
 export default function TabLayout() {
   const { count: pendingSync } = useOutbox();
+  const { t } = useTheme();
+  const [sheetOpen, setSheetOpen] = useState(false);
+
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.textFaint,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-        },
-        headerStyle: { backgroundColor: colors.bg },
-        headerTitleStyle: { color: colors.text, fontWeight: '700' },
-        headerShadowVisible: false,
-        // Disable the static render of the header on web
-        // to prevent a hydration error in React Navigation v6.
-        headerShown: useClientOnlyValue(false, true),
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          headerShown: false,
-          tabBarIcon: ({ color }) => <TabBarIcon name="th-large" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="riders"
-        options={{
-          title: 'Riders',
-          tabBarIcon: ({ color }) => <TabBarIcon name="users" color={color} />,
-          headerRight: () => <HeaderRight addHref="/rider/new" />,
-        }}
-      />
-      <Tabs.Screen
-        name="vehicles"
-        options={{
-          title: 'Vehicles',
-          tabBarIcon: ({ color }) => <TabBarIcon name="car" color={color} />,
-          headerRight: () => <HeaderRight addHref="/vehicle/new" />,
-        }}
-      />
-      <Tabs.Screen
-        name="more"
-        options={{
-          title: 'More',
-          tabBarIcon: ({ color }) => <TabBarIcon name="ellipsis-h" color={color} />,
-          headerRight: () => <HeaderRight />,
-          // Surface unsynced writes waiting in the outbound queue.
-          tabBarBadge: pendingSync > 0 ? pendingSync : undefined,
-          tabBarBadgeStyle: { backgroundColor: colors.warning, color: '#fff' },
-        }}
-      />
-    </Tabs>
+    <>
+      <Tabs
+        screenOptions={{
+          tabBarActiveTintColor: t.accentText,
+          tabBarInactiveTintColor: t.textFaint,
+          tabBarStyle: {
+            backgroundColor: t.tabBar,
+            borderTopColor: t.border,
+          },
+          headerStyle: { backgroundColor: t.bg },
+          headerTitleStyle: { color: t.text, fontWeight: '700' },
+          headerShadowVisible: false,
+          // Disable the static render of the header on web
+          // to prevent a hydration error in React Navigation v6.
+          headerShown: useClientOnlyValue(false, true),
+        }}>
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: 'Home',
+            headerShown: false,
+            tabBarIcon: ({ color }) => <TabBarIcon name="th-large" color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="money"
+          options={{
+            title: 'Money',
+            tabBarIcon: ({ color }) => <TabBarIcon name="inr" color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="plus"
+          options={{
+            title: '',
+            tabBarButton: () => (
+              <Pressable
+                onPress={() => setSheetOpen(true)}
+                style={styles.fabWrap}
+                accessibilityRole="button"
+                accessibilityLabel="Record something new">
+                <View style={[styles.fab, { backgroundColor: t.accent, shadowColor: t.shadow }]}>
+                  <FontAwesome name="plus" size={22} color={t.onAccent} />
+                </View>
+              </Pressable>
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="riders"
+          options={{
+            title: 'Riders',
+            tabBarIcon: ({ color }) => <TabBarIcon name="users" color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="menu"
+          options={{
+            title: 'Menu',
+            tabBarIcon: ({ color }) => <TabBarIcon name="ellipsis-h" color={color} />,
+            // Surface unsynced writes waiting in the outbound queue.
+            tabBarBadge: pendingSync > 0 ? pendingSync : undefined,
+            tabBarBadgeStyle: { backgroundColor: t.warning, color: '#fff' },
+          }}
+        />
+      </Tabs>
+      <ActionSheet visible={sheetOpen} onClose={() => setSheetOpen(false)} />
+    </>
   );
 }
+
+const styles = StyleSheet.create({
+  fabWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  fab: {
+    width: 52,
+    height: 52,
+    borderRadius: radius.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -space(5),
+    elevation: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+});

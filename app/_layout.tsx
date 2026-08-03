@@ -1,4 +1,4 @@
-import { DefaultTheme, ThemeProvider, type Theme } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider, type Theme } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -17,7 +17,8 @@ import '@/lib/network-log';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import { OutboxSync } from '@/components/OutboxSync';
 import { ToastProvider } from '@/components/ui/Toast';
-import { colors } from '@/constants/theme';
+import { darkTheme, lightTheme } from '@/constants/theme';
+import { ThemeProvider, useTheme } from '@/lib/theme-context';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { useShake } from '@/lib/useShake';
 import { recordUpdateStatus } from '@/lib/update-status';
@@ -31,16 +32,28 @@ export const unstable_settings = {
   initialRouteName: '(tabs)',
 };
 
-// MoveGrid mobile uses a light theme with the brand green accent.
-const MoveGridTheme: Theme = {
+// Navigation themes derived from the two token sets, so headers/stacks follow
+// the Settings toggle (neo-minimal light default, ambient dark opt-in).
+const NavLight: Theme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
-    background: colors.bg,
-    card: colors.surface,
-    text: colors.text,
-    border: colors.border,
-    primary: colors.accent,
+    background: lightTheme.bg,
+    card: lightTheme.surface,
+    text: lightTheme.text,
+    border: lightTheme.border,
+    primary: lightTheme.accent,
+  },
+};
+const NavDark: Theme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: darkTheme.bg,
+    card: darkTheme.surfaceRaised,
+    text: darkTheme.text,
+    border: 'rgba(255,255,255,0.08)',
+    primary: darkTheme.accent,
   },
 };
 
@@ -110,15 +123,25 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <ThemeProvider value={MoveGridTheme}>
-          <ToastProvider>
-            <StatusBar style="dark" />
-            <OutboxSync />
-            <RootNavigator />
-          </ToastProvider>
+        <ThemeProvider>
+          <ThemedShell />
         </ThemeProvider>
       </AuthProvider>
     </SafeAreaProvider>
+  );
+}
+
+// Inside ThemeProvider so navigation chrome + status bar re-skin on toggle.
+function ThemedShell() {
+  const { mode, t } = useTheme();
+  return (
+    <NavThemeProvider value={mode === 'dark' ? NavDark : NavLight}>
+      <ToastProvider>
+        <StatusBar style={t.statusBarStyle} />
+        <OutboxSync />
+        <RootNavigator />
+      </ToastProvider>
+    </NavThemeProvider>
   );
 }
 
@@ -160,8 +183,13 @@ function RootNavigator() {
     return <LoadingScreen />;
   }
 
+  return <AppStack />;
+}
+
+function AppStack() {
+  const { t } = useTheme();
   return (
-    <Stack screenOptions={{ contentStyle: { backgroundColor: colors.bg } }}>
+    <Stack screenOptions={{ contentStyle: { backgroundColor: t.bg } }}>
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="rider/[id]" options={{ headerShown: true }} />
@@ -173,6 +201,7 @@ function RootNavigator() {
       <Stack.Screen name="allotment/new" options={{ headerShown: true }} />
       <Stack.Screen name="allotment/return" options={{ headerShown: true }} />
       <Stack.Screen name="rent-collect" options={{ headerShown: true }} />
+      <Stack.Screen name="fleet" options={{ headerShown: true }} />
       <Stack.Screen name="rent-waivers" options={{ headerShown: true }} />
       <Stack.Screen name="hubs" options={{ headerShown: true }} />
       <Stack.Screen name="leads" options={{ headerShown: true }} />
