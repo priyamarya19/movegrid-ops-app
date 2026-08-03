@@ -2,14 +2,21 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Pressable, Text, View, StyleSheet } from 'react-native';
 
 import { Card } from './Card';
-import { colors, radius, space } from '@/constants/theme';
+import { radius, space } from '@/constants/theme';
+import type { ThemeTokens } from '@/constants/theme';
+import { useTheme } from '@/lib/theme-context';
 
 type Tone = 'accent' | 'danger' | 'warning';
 
-const TONES: Record<Tone, { fg: string; bg: string }> = {
-  accent: { fg: colors.accent, bg: colors.accentSoft },
-  danger: { fg: colors.danger, bg: colors.dangerSoft },
-  warning: { fg: colors.warning, bg: colors.warningSoft },
+const toneColors = (t: ThemeTokens, tone: Tone): { fg: string; bg: string } => {
+  switch (tone) {
+    case 'danger':
+      return { fg: t.dangerText, bg: t.dangerSoft };
+    case 'warning':
+      return { fg: t.warningText, bg: t.warningSoft };
+    default:
+      return { fg: t.accentText, bg: t.accentSoft };
+  }
 };
 
 type Props = {
@@ -21,20 +28,28 @@ type Props = {
 };
 
 export function StatCard({ icon, value, label, tone = 'accent', onPress }: Props) {
-  const t = TONES[tone];
+  const { t } = useTheme();
+  const c = toneColors(t, tone);
   const inner = (
     <>
-      <View style={[styles.iconWrap, { backgroundColor: t.bg }]}>
-        <FontAwesome name={icon} size={16} color={t.fg} />
+      <View style={[styles.iconWrap, { backgroundColor: c.bg }]}>
+        <FontAwesome name={icon} size={16} color={c.fg} />
       </View>
-      <Text style={styles.value}>{value}</Text>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.value, { color: t.text }]}>{value}</Text>
+      <Text style={[styles.label, { color: t.textMuted }]}>{label}</Text>
     </>
   );
 
   if (onPress) {
     return (
-      <Pressable style={({ pressed }) => [styles.card, styles.pressable, pressed && styles.pressed]} onPress={onPress}>
+      <Pressable
+        style={({ pressed }) => [
+          styles.card,
+          styles.pressable,
+          { backgroundColor: t.surface, borderColor: t.border },
+          pressed && styles.pressed,
+        ]}
+        onPress={onPress}>
         {inner}
       </Pressable>
     );
@@ -48,10 +63,8 @@ const styles = StyleSheet.create({
     gap: space(2),
   },
   pressable: {
-    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
     padding: space(4),
   },
   pressed: {
@@ -65,13 +78,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   value: {
-    color: colors.text,
     fontSize: 26,
     fontWeight: '700',
     letterSpacing: -0.5,
   },
   label: {
-    color: colors.textMuted,
     fontSize: 13,
     fontWeight: '500',
   },

@@ -7,9 +7,10 @@ import { ChipSelect, TextField } from '@/components/ui/Form';
 import { ErrorBanner, FormScreen } from '@/components/ui/FormScreen';
 import { SelectField, type SelectOption } from '@/components/ui/SelectField';
 import { useToast } from '@/components/ui/Toast';
-import { colors, radius, space } from '@/constants/theme';
+import { radius, space } from '@/constants/theme';
 import { getVehicles, replaceVehicle, type Vehicle } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useTheme } from '@/lib/theme-context';
 import { useApiQuery } from '@/lib/useApiQuery';
 
 const OLD_STATUS_OPTIONS = [
@@ -23,6 +24,7 @@ const OLD_STATUS_OPTIONS = [
 // onboarding fee. Payment, if any, is collected via the normal rent flow after.
 export default function ReplaceVehicleScreen() {
   const { token } = useAuth();
+  const { t } = useTheme();
   const router = useRouter();
   const toast = useToast();
   const params = useLocalSearchParams<{ riderId: string; riderName?: string; currentEv?: string; dailyRate?: string }>();
@@ -86,9 +88,9 @@ export default function ReplaceVehicleScreen() {
       <Stack.Screen options={{ title: 'Replace vehicle' }} />
       <FormScreen>
         {params.riderName ? (
-          <View style={styles.summary}>
-            <Text style={styles.rider}>{params.riderName}</Text>
-            {params.currentEv ? <Text style={styles.meta}>Current vehicle {params.currentEv}</Text> : null}
+          <View style={[styles.summary, { backgroundColor: t.surface, borderColor: t.border }]}>
+            <Text style={[styles.rider, { color: t.text }]}>{params.riderName}</Text>
+            {params.currentEv ? <Text style={[styles.meta, { color: t.textMuted }]}>Current vehicle {params.currentEv}</Text> : null}
           </View>
         ) : null}
 
@@ -127,7 +129,7 @@ export default function ReplaceVehicleScreen() {
         {error ? <ErrorBanner message={error} /> : null}
 
         <Button title="Replace vehicle" onPress={onSubmit} loading={submitting} disabled={!canSubmit} />
-        <Text style={styles.note}>Same allotment ID and rent cycle — no onboarding fee, no re-allotment.</Text>
+        <Text style={[styles.note, { color: t.textFaint }]}>Same allotment ID and rent cycle — no onboarding fee, no re-allotment.</Text>
       </FormScreen>
     </>
   );
@@ -135,14 +137,12 @@ export default function ReplaceVehicleScreen() {
 
 const styles = StyleSheet.create({
   summary: {
-    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.lg,
     padding: space(4),
     gap: space(1),
   },
-  rider: { color: colors.text, fontSize: 16, fontWeight: '700' },
-  meta: { color: colors.textMuted, fontSize: 13 },
-  note: { color: colors.textFaint, fontSize: 12, textAlign: 'center' },
+  rider: { fontSize: 16, fontWeight: '700' },
+  meta: { fontSize: 13 },
+  note: { fontSize: 12, textAlign: 'center' },
 });

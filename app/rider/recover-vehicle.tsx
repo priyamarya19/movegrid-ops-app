@@ -14,10 +14,11 @@ import {
   type PaymentProofValue,
 } from '@/components/ui/PaymentProof';
 import { useToast } from '@/components/ui/Toast';
-import { colors, radius, space } from '@/constants/theme';
+import { radius, space } from '@/constants/theme';
 import { recoverVehicle } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { formatINR } from '@/lib/format';
+import { useTheme } from '@/lib/theme-context';
 
 const REASONS = [
   { label: 'Non-payment', value: 'non_payment' },
@@ -31,6 +32,7 @@ const REASONS = [
 // outstanding freezes as recovery dues.
 export default function RecoverVehicleScreen() {
   const { token } = useAuth();
+  const { t } = useTheme();
   const router = useRouter();
   const toast = useToast();
   const params = useLocalSearchParams<{ riderId: string; riderName?: string; currentEv?: string }>();
@@ -98,9 +100,9 @@ export default function RecoverVehicleScreen() {
       <Stack.Screen options={{ title: 'Recover vehicle' }} />
       <FormScreen>
         {params.riderName ? (
-          <View style={styles.summary}>
-            <Text style={styles.rider}>{params.riderName}</Text>
-            {params.currentEv ? <Text style={styles.meta}>Vehicle {params.currentEv}</Text> : null}
+          <View style={[styles.summary, { backgroundColor: t.surface, borderColor: t.border }]}>
+            <Text style={[styles.rider, { color: t.text }]}>{params.riderName}</Text>
+            {params.currentEv ? <Text style={[styles.meta, { color: t.textMuted }]}>Vehicle {params.currentEv}</Text> : null}
           </View>
         ) : null}
 
@@ -141,17 +143,19 @@ export default function RecoverVehicleScreen() {
         <ImageField label="Vehicle condition photo 1" folder="recoveries" value={photos[0]} onChange={(k) => setPhoto(0, k)} />
         <ImageField label="Vehicle condition photo 2 (optional)" folder="recoveries" value={photos[1]} onChange={(k) => setPhoto(1, k)} />
 
-        <Pressable style={styles.blacklistRow} onPress={() => setBlacklist((v) => !v)}>
+        <Pressable
+          style={[styles.blacklistRow, { backgroundColor: t.dangerSoft }]}
+          onPress={() => setBlacklist((v) => !v)}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.blacklistTitle}>Blacklist this rider</Text>
-            <Text style={styles.blacklistSub}>Blocks login and re-registration — including with the same Aadhaar/PAN</Text>
+            <Text style={[styles.blacklistTitle, { color: t.dangerText }]}>Blacklist this rider</Text>
+            <Text style={[styles.blacklistSub, { color: t.textMuted }]}>Blocks login and re-registration — including with the same Aadhaar/PAN</Text>
           </View>
-          <Switch value={blacklist} onValueChange={setBlacklist} trackColor={{ true: colors.danger }} />
+          <Switch value={blacklist} onValueChange={setBlacklist} trackColor={{ true: t.danger }} />
         </Pressable>
 
         {error ? <ErrorBanner message={error} /> : null}
         <Button title="Record recovery" onPress={onSubmit} loading={submitting} disabled={!canSubmit} variant="danger" />
-        <Text style={styles.note}>Outstanding is frozen as recovery dues; the vehicle returns to the fleet after inspection.</Text>
+        <Text style={[styles.note, { color: t.textFaint }]}>Outstanding is frozen as recovery dues; the vehicle returns to the fleet after inspection.</Text>
       </FormScreen>
     </>
   );
@@ -159,16 +163,16 @@ export default function RecoverVehicleScreen() {
 
 const styles = StyleSheet.create({
   summary: {
-    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+    borderWidth: 1,
     borderRadius: radius.lg, padding: space(4), gap: space(1),
   },
-  rider: { color: colors.text, fontSize: 16, fontWeight: '700' },
-  meta: { color: colors.textMuted, fontSize: 13 },
+  rider: { fontSize: 16, fontWeight: '700' },
+  meta: { fontSize: 13 },
   blacklistRow: {
     flexDirection: 'row', alignItems: 'center', gap: space(3),
-    backgroundColor: colors.dangerSoft, borderRadius: radius.lg, padding: space(3.5),
+    borderRadius: radius.lg, padding: space(3.5),
   },
-  blacklistTitle: { color: colors.danger, fontSize: 14, fontWeight: '700' },
-  blacklistSub: { color: colors.textMuted, fontSize: 11.5, marginTop: 1 },
-  note: { color: colors.textFaint, fontSize: 12, textAlign: 'center' },
+  blacklistTitle: { fontSize: 14, fontWeight: '700' },
+  blacklistSub: { fontSize: 11.5, marginTop: 1 },
+  note: { fontSize: 12, textAlign: 'center' },
 });

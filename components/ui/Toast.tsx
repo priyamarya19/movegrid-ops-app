@@ -3,7 +3,8 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { Animated, Text, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, radius, space } from '@/constants/theme';
+import { radius, space } from '@/constants/theme';
+import { useTheme } from '@/lib/theme-context';
 
 type ToastKind = 'success' | 'error' | 'info';
 type ToastState = { message: string; kind: ToastKind } | null;
@@ -11,6 +12,7 @@ type ToastState = { message: string; kind: ToastKind } | null;
 const ToastContext = createContext<(message: string, kind?: ToastKind) => void>(() => {});
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
+  const { t } = useTheme();
   const [toast, setToast] = useState<ToastState>(null);
   const opacity = useRef(new Animated.Value(0)).current;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -31,7 +33,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
   const tone =
-    toast?.kind === 'success' ? colors.accent : toast?.kind === 'error' ? colors.danger : colors.text;
+    toast?.kind === 'success' ? t.accentText : toast?.kind === 'error' ? t.dangerText : t.text;
   const icon = toast?.kind === 'success' ? 'check-circle' : toast?.kind === 'error' ? 'exclamation-circle' : 'info-circle';
 
   return (
@@ -39,9 +41,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       {toast ? (
         <Animated.View pointerEvents="none" style={[styles.wrap, { opacity, top: insets.top + space(2) }]}>
-          <View style={styles.toast}>
+          <View style={[styles.toast, { backgroundColor: t.surfaceRaised, borderColor: t.border }]}>
             <FontAwesome name={icon} size={15} color={tone} />
-            <Text style={styles.text}>{toast.message}</Text>
+            <Text style={[styles.text, { color: t.text }]}>{toast.message}</Text>
           </View>
         </Animated.View>
       ) : null}
@@ -65,9 +67,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space(2),
-    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: space(4),
     paddingVertical: space(3),
@@ -80,7 +80,6 @@ const styles = StyleSheet.create({
   },
   text: {
     flex: 1,
-    color: colors.text,
     fontSize: 14,
     fontWeight: '500',
   },

@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { FieldCard, Section } from '@/components/ui/Detail';
 import { ErrorState, LoadingState } from '@/components/ui/QueryStates';
 import { StatusPill } from '@/components/ui/StatusPill';
-import { colors, radius, space } from '@/constants/theme';
+import { radius, space } from '@/constants/theme';
 import {
   getRider,
   getRiderPenalties,
@@ -19,6 +19,7 @@ import {
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate, formatINR, maskAadhaar, maskDL, maskPAN, penaltyStatusPill, rentStatusPill, riderStatusPill } from '@/lib/format';
+import { useTheme } from '@/lib/theme-context';
 import { useApiQuery } from '@/lib/useApiQuery';
 
 export default function RiderDetailScreen() {
@@ -44,22 +45,23 @@ export default function RiderDetailScreen() {
 
 function RiderBody({ data, refreshing, onRefresh }: { data: RiderDetail; refreshing: boolean; onRefresh: () => void }) {
   const router = useRouter();
+  const { t } = useTheme();
   const { rider, payments, assignments, totalCollected } = data;
   const pill = riderStatusPill(rider.status);
   const activeAssignment = assignments.find((a) => a.assignment_status === 'active');
 
   return (
     <ScrollView
-      style={styles.screen}
+      style={[styles.screen, { backgroundColor: t.bg }]}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}>
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.accent} />}>
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{rider.name?.charAt(0) ?? '?'}</Text>
+        <View style={[styles.avatar, { backgroundColor: t.accentSoft }]}>
+          <Text style={[styles.avatarText, { color: t.accentText }]}>{rider.name?.charAt(0) ?? '?'}</Text>
         </View>
-        <Text style={styles.name}>{rider.name}</Text>
-        <Text style={styles.sub}>
+        <Text style={[styles.name, { color: t.text }]}>{rider.name}</Text>
+        <Text style={[styles.sub, { color: t.textMuted }]}>
           {rider.rider_code} · {rider.mobile}
         </Text>
         <StatusPill label={pill.label} tone={pill.tone} />
@@ -132,7 +134,7 @@ function RiderBody({ data, refreshing, onRefresh }: { data: RiderDetail; refresh
           </>
         ) : (
           <Card>
-            <Text style={styles.muted}>No active vehicle assignment.</Text>
+            <Text style={[styles.muted, { color: t.textMuted }]}>No active allotment.</Text>
           </Card>
         )}
       </Section>
@@ -156,12 +158,14 @@ function RiderBody({ data, refreshing, onRefresh }: { data: RiderDetail; refresh
         {payments.length > 0 ? (
           <Card style={styles.listCard}>
             {payments.slice(0, 8).map((p, i) => (
-              <View key={`${p.payment_date}-${i}`} style={[styles.payRow, i > 0 && styles.rowBorder]}>
+              <View
+                key={`${p.payment_date}-${i}`}
+                style={[styles.payRow, i > 0 && [styles.rowBorder, { borderTopColor: t.border }]]}>
                 <View>
-                  <Text style={styles.payAmount}>{formatINR(p.amount_collected)}</Text>
-                  <Text style={styles.payMeta}>{p.ev_number ?? '—'}</Text>
+                  <Text style={[styles.payAmount, { color: t.text }]}>{formatINR(p.amount_collected)}</Text>
+                  <Text style={[styles.payMeta, { color: t.textFaint }]}>{p.ev_number ?? '—'}</Text>
                 </View>
-                <Text style={styles.payDate}>{formatDate(p.payment_date)}</Text>
+                <Text style={[styles.payDate, { color: t.textMuted }]}>{formatDate(p.payment_date)}</Text>
               </View>
             ))}
           </Card>
@@ -183,6 +187,7 @@ function RiderBody({ data, refreshing, onRefresh }: { data: RiderDetail; refresh
 
 function RentLedger({ riderId, riderName }: { riderId: string; riderName: string }) {
   const router = useRouter();
+  const { t } = useTheme();
   const fetcher = useCallback((token: string) => getRiderRentCycle(token, riderId), [riderId]);
   const { data, loading, error } = useApiQuery<RiderRentCycle>(fetcher, [riderId], {
     cacheKey: `rider-rent:${riderId}`,
@@ -191,14 +196,14 @@ function RentLedger({ riderId, riderName }: { riderId: string; riderName: string
   if (loading) {
     return (
       <Card>
-        <Text style={styles.muted}>Loading rent…</Text>
+        <Text style={[styles.muted, { color: t.textMuted }]}>Loading rent…</Text>
       </Card>
     );
   }
   if (error) {
     return (
       <Card>
-        <Text style={styles.muted}>{error}</Text>
+        <Text style={[styles.muted, { color: t.textMuted }]}>{error}</Text>
       </Card>
     );
   }
@@ -253,19 +258,21 @@ function RentLedger({ riderId, riderName }: { riderId: string; riderName: string
 
       {weeks.length === 0 ? (
         <Card>
-          <Text style={styles.muted}>No rent schedule yet.</Text>
+          <Text style={[styles.muted, { color: t.textMuted }]}>No rent schedule yet.</Text>
         </Card>
       ) : (
         <Card style={styles.listCard}>
           {recent.map((w, i) => {
             const pill = rentStatusPill(w.status);
             return (
-              <View key={`${w.week_no}-${w.period_start}`} style={[styles.weekRow, i > 0 && styles.rowBorder]}>
+              <View
+                key={`${w.week_no}-${w.period_start}`}
+                style={[styles.weekRow, i > 0 && [styles.rowBorder, { borderTopColor: t.border }]]}>
                 <View style={styles.weekMain}>
-                  <Text style={styles.weekTitle}>
+                  <Text style={[styles.weekTitle, { color: t.text }]}>
                     {w.due_date ? `Due ${formatDate(w.due_date)}` : 'Paid at allotment'}
                   </Text>
-                  <Text style={styles.payMeta}>
+                  <Text style={[styles.payMeta, { color: t.textFaint }]}>
                     {formatINR(w.paid)} / {formatINR(w.amount)}
                     {w.ev_number ? ` · ${w.ev_number}` : ''}
                   </Text>
@@ -289,7 +296,8 @@ function toNumber(v: number | string | null): number {
 function Penalties({ riderId, riderName }: { riderId: string; riderName: string }) {
   const router = useRouter();
   const { token } = useAuth();
-  const fetcher = useCallback((t: string) => getRiderPenalties(t, riderId), [riderId]);
+  const { t } = useTheme();
+  const fetcher = useCallback((tk: string) => getRiderPenalties(tk, riderId), [riderId]);
   const { data, loading, error, refetch } = useApiQuery<{ penalties: RiderPenalty[] }>(fetcher, [riderId], {
     cacheKey: `rider-penalties:${riderId}`,
   });
@@ -308,14 +316,14 @@ function Penalties({ riderId, riderName }: { riderId: string; riderName: string 
   if (loading) {
     return (
       <Card>
-        <Text style={styles.muted}>Loading penalties…</Text>
+        <Text style={[styles.muted, { color: t.textMuted }]}>Loading penalties…</Text>
       </Card>
     );
   }
   if (error) {
     return (
       <Card>
-        <Text style={styles.muted}>{error}</Text>
+        <Text style={[styles.muted, { color: t.textMuted }]}>{error}</Text>
       </Card>
     );
   }
@@ -360,11 +368,11 @@ function Penalties({ riderId, riderName }: { riderId: string; riderName: string 
             const pending = p.status === 'pending';
             const busy = busyId === p.id;
             return (
-              <View key={p.id} style={[styles.penaltyRow, i > 0 && styles.rowBorder]}>
+              <View key={p.id} style={[styles.penaltyRow, i > 0 && [styles.rowBorder, { borderTopColor: t.border }]]}>
                 <View style={styles.penaltyHead}>
                   <View style={styles.penaltyMain}>
-                    <Text style={styles.weekTitle}>{p.detail}</Text>
-                    <Text style={styles.payMeta}>
+                    <Text style={[styles.weekTitle, { color: t.text }]}>{p.detail}</Text>
+                    <Text style={[styles.payMeta, { color: t.textFaint }]}>
                       {p.amount != null && p.amount !== '' ? formatINR(p.amount) : '—'}
                       {p.ev_number ? ` · ${p.ev_number}` : ''}
                     </Text>
@@ -387,13 +395,13 @@ function Penalties({ riderId, riderName }: { riderId: string; riderName: string 
                         })
                       }
                       style={({ pressed }) => [styles.penaltyAction, pressed && styles.pressed]}>
-                      <Text style={styles.payAction}>Mark paid</Text>
+                      <Text style={[styles.payAction, { color: t.accentText }]}>Mark paid</Text>
                     </Pressable>
                     <Pressable
                       disabled={busy}
                       onPress={() => waive(p)}
                       style={({ pressed }) => [styles.penaltyAction, pressed && styles.pressed]}>
-                      <Text style={styles.waiveAction}>{busy ? 'Waiving…' : 'Waive'}</Text>
+                      <Text style={[styles.waiveAction, { color: t.textMuted }]}>{busy ? 'Waiving…' : 'Waive'}</Text>
                     </Pressable>
                   </View>
                 ) : null}
@@ -403,7 +411,7 @@ function Penalties({ riderId, riderName }: { riderId: string; riderName: string 
         </Card>
       ) : (
         <Card>
-          <Text style={styles.muted}>No penalties.</Text>
+          <Text style={[styles.muted, { color: t.textMuted }]}>No penalties.</Text>
         </Card>
       )}
 
@@ -413,21 +421,20 @@ function Penalties({ riderId, riderName }: { riderId: string; riderName: string 
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
+  screen: { flex: 1 },
   content: { padding: space(4), gap: space(5), paddingBottom: space(10) },
   header: { alignItems: 'center', gap: space(2) },
   avatar: {
     width: 64,
     height: 64,
     borderRadius: radius.full,
-    backgroundColor: colors.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { color: colors.accent, fontWeight: '700', fontSize: 26 },
-  name: { color: colors.text, fontSize: 22, fontWeight: '700', letterSpacing: -0.4 },
-  sub: { color: colors.textMuted, fontSize: 14 },
-  muted: { color: colors.textMuted, fontSize: 14 },
+  avatarText: { fontWeight: '700', fontSize: 26 },
+  name: { fontSize: 22, fontWeight: '700', letterSpacing: -0.4 },
+  sub: { fontSize: 14 },
+  muted: { fontSize: 14 },
   listCard: { padding: 0 },
   payRow: {
     flexDirection: 'row',
@@ -435,10 +442,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: space(4),
   },
-  rowBorder: { borderTopWidth: 1, borderTopColor: colors.border },
-  payAmount: { color: colors.text, fontSize: 15, fontWeight: '600' },
-  payMeta: { color: colors.textFaint, fontSize: 12, marginTop: 2 },
-  payDate: { color: colors.textMuted, fontSize: 13 },
+  rowBorder: { borderTopWidth: 1 },
+  payAmount: { fontSize: 15, fontWeight: '600' },
+  payMeta: { fontSize: 12, marginTop: 2 },
+  payDate: { fontSize: 13 },
   weekRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -446,13 +453,13 @@ const styles = StyleSheet.create({
     padding: space(4),
   },
   weekMain: { flex: 1 },
-  weekTitle: { color: colors.text, fontSize: 15, fontWeight: '600' },
+  weekTitle: { fontSize: 15, fontWeight: '600' },
   pressed: { opacity: 0.6 },
   penaltyRow: { padding: space(4), gap: space(2.5) },
   penaltyHead: { flexDirection: 'row', alignItems: 'center', gap: space(3) },
   penaltyMain: { flex: 1 },
   penaltyActions: { flexDirection: 'row', gap: space(5) },
   penaltyAction: { paddingVertical: space(1) },
-  payAction: { color: colors.accent, fontSize: 14, fontWeight: '700' },
-  waiveAction: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
+  payAction: { fontSize: 14, fontWeight: '700' },
+  waiveAction: { fontSize: 14, fontWeight: '700' },
 });

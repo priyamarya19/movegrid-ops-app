@@ -13,12 +13,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { colors, radius, space } from '@/constants/theme';
+import { radius, space } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
+import { useTheme } from '@/lib/theme-context';
 import { isValidEmail } from '@/lib/validation';
 
 export default function LoginScreen() {
   const { signIn, sessionExpired } = useAuth();
+  const { t } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -44,7 +46,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: t.bg }]}>
       <KeyboardAvoidingView style={styles.flex} behavior="padding">
         <ScrollView
           contentContainerStyle={styles.content}
@@ -53,29 +55,33 @@ export default function LoginScreen() {
           {/* Brand */}
           <View style={styles.brand}>
             <Image source={require('@/assets/images/logo-icon.png')} style={styles.logo} resizeMode="contain" />
-            <Text style={styles.brandName}>MoveGrid</Text>
-            <Text style={styles.brandTag}>Operations</Text>
+            <Text style={[styles.brandName, { color: t.text }]}>MoveGrid</Text>
+            <Text style={[styles.brandTag, { color: t.textMuted }]}>Operations</Text>
           </View>
 
-          <Text style={styles.title}>Sign in</Text>
-          <Text style={styles.subtitle}>Use your MoveGrid dashboard account.</Text>
+          <Text style={[styles.title, { color: t.text }]}>Sign in</Text>
+          <Text style={[styles.subtitle, { color: t.textMuted }]}>Use your MoveGrid dashboard account.</Text>
 
           {sessionExpired ? (
-            <View style={styles.noticeBox}>
-              <FontAwesome name="clock-o" size={14} color={colors.textMuted} />
-              <Text style={styles.noticeText}>Session expired, please sign in again.</Text>
+            <View style={[styles.noticeBox, { backgroundColor: t.surfaceAlt }]}>
+              <FontAwesome name="clock-o" size={14} color={t.textMuted} />
+              <Text style={[styles.noticeText, { color: t.textMuted }]}>Session expired — please sign in again.</Text>
             </View>
           ) : null}
 
           {/* Email */}
           <View style={styles.field}>
-            <Text style={styles.label}>Email</Text>
+            <Text style={[styles.label, { color: t.textMuted }]}>Email</Text>
             <TextInput
-              style={[styles.input, showEmailError && styles.inputError]}
+              style={[
+                styles.input,
+                { backgroundColor: t.surface, borderColor: t.border, color: t.text },
+                showEmailError && { borderColor: t.danger },
+              ]}
               value={email}
               onChangeText={setEmail}
               placeholder="you@movegrid.in"
-              placeholderTextColor={colors.textFaint}
+              placeholderTextColor={t.textFaint}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"
@@ -83,19 +89,21 @@ export default function LoginScreen() {
               returnKeyType="next"
               editable={!submitting}
             />
-            {showEmailError ? <Text style={styles.fieldError}>Enter a valid email address</Text> : null}
+            {showEmailError ? (
+              <Text style={[styles.fieldError, { color: t.dangerText }]}>Enter a valid email address</Text>
+            ) : null}
           </View>
 
           {/* Password */}
           <View style={styles.field}>
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.passwordRow}>
+            <Text style={[styles.label, { color: t.textMuted }]}>Password</Text>
+            <View style={[styles.passwordRow, { backgroundColor: t.surface, borderColor: t.border }]}>
               <TextInput
-                style={styles.passwordInput}
+                style={[styles.passwordInput, { color: t.text }]}
                 value={password}
                 onChangeText={setPassword}
                 placeholder="••••••••"
-                placeholderTextColor={colors.textFaint}
+                placeholderTextColor={t.textFaint}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoComplete="password"
@@ -107,27 +115,27 @@ export default function LoginScreen() {
                 <FontAwesome
                   name={showPassword ? 'eye-slash' : 'eye'}
                   size={16}
-                  color={colors.textFaint}
+                  color={t.textFaint}
                 />
               </Pressable>
             </View>
           </View>
 
           {error ? (
-            <View style={styles.errorBox}>
-              <FontAwesome name="exclamation-circle" size={14} color={colors.danger} />
-              <Text style={styles.errorText}>{error}</Text>
+            <View style={[styles.errorBox, { backgroundColor: t.dangerSoft }]}>
+              <FontAwesome name="exclamation-circle" size={14} color={t.dangerText} />
+              <Text style={[styles.errorText, { color: t.dangerText }]}>{error}</Text>
             </View>
           ) : null}
 
           <Pressable
-            style={[styles.button, !canSubmit && styles.buttonDisabled]}
+            style={[styles.button, { backgroundColor: t.accent }, !canSubmit && styles.buttonDisabled]}
             onPress={onSubmit}
             disabled={!canSubmit}>
             {submitting ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={t.onAccent} />
             ) : (
-              <Text style={styles.buttonText}>Sign in</Text>
+              <Text style={[styles.buttonText, { color: t.onAccent }]}>Sign in</Text>
             )}
           </Pressable>
         </ScrollView>
@@ -139,7 +147,6 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: colors.bg,
   },
   flex: {
     flex: 1,
@@ -160,13 +167,11 @@ const styles = StyleSheet.create({
     height: 72,
   },
   brandName: {
-    color: colors.text,
     fontSize: 24,
     fontWeight: '800',
     letterSpacing: -0.5,
   },
   brandTag: {
-    color: colors.textMuted,
     fontSize: 13,
     fontWeight: '600',
     textTransform: 'uppercase',
@@ -174,13 +179,11 @@ const styles = StyleSheet.create({
     marginTop: -4,
   },
   title: {
-    color: colors.text,
     fontSize: 22,
     fontWeight: '700',
     letterSpacing: -0.3,
   },
   subtitle: {
-    color: colors.textMuted,
     fontSize: 14,
     marginTop: -space(3),
   },
@@ -188,34 +191,24 @@ const styles = StyleSheet.create({
     gap: space(1.5),
   },
   label: {
-    color: colors.textMuted,
     fontSize: 13,
     fontWeight: '600',
   },
   input: {
-    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: space(4),
     paddingVertical: space(3.5),
     fontSize: 15,
-    color: colors.text,
-  },
-  inputError: {
-    borderColor: colors.danger,
   },
   fieldError: {
-    color: colors.danger,
     fontSize: 12,
     fontWeight: '500',
   },
   passwordRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.md,
     paddingRight: space(4),
   },
@@ -224,7 +217,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(4),
     paddingVertical: space(3.5),
     fontSize: 15,
-    color: colors.text,
   },
   eye: {
     padding: space(1),
@@ -233,7 +225,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space(2),
-    backgroundColor: colors.dangerSoft,
     borderRadius: radius.md,
     padding: space(3),
   },
@@ -241,24 +232,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space(2),
-    backgroundColor: colors.surfaceAlt,
     borderRadius: radius.md,
     padding: space(3),
   },
   noticeText: {
     flex: 1,
-    color: colors.textMuted,
     fontSize: 13,
     fontWeight: '500',
   },
   errorText: {
     flex: 1,
-    color: colors.danger,
     fontSize: 13,
     fontWeight: '500',
   },
   button: {
-    backgroundColor: colors.accent,
     borderRadius: radius.md,
     paddingVertical: space(4),
     alignItems: 'center',
@@ -269,7 +256,6 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   buttonText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: '700',
   },

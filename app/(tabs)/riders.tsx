@@ -6,9 +6,10 @@ import { FlatList, Pressable, RefreshControl, Text, View, StyleSheet } from 'rea
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/QueryStates';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { StatusPill } from '@/components/ui/StatusPill';
-import { colors, radius, space } from '@/constants/theme';
+import { radius, space } from '@/constants/theme';
 import { formatDate, formatINR, riderStatusPill } from '@/lib/format';
 import { getOverdueRiders, getRiders, type OverdueRider, type Rider } from '@/lib/api';
+import { useTheme } from '@/lib/theme-context';
 import { useApiQuery } from '@/lib/useApiQuery';
 
 type RidersData = { riders: Rider[]; overdue: OverdueRider[]; dueSoon: Rider[]; pendingWeek: Rider[] };
@@ -29,17 +30,19 @@ async function loadRiders(token: string): Promise<RidersData> {
   return { riders, overdue: overdue.riders, dueSoon, pendingWeek };
 }
 
-type FilterValue = 'all' | 'overdue' | 'due' | 'pending';
+type FilterValue = 'all' | 'overdue' | 'due' | 'pending' | 'no_vehicle';
 
 const FILTERS = [
   { label: 'All', value: 'all' },
   { label: 'Overdue', value: 'overdue' },
   { label: 'Due', value: 'due' },
   { label: 'This week', value: 'pending' },
+  { label: 'No vehicle', value: 'no_vehicle' },
 ] as const;
 
 export default function RidersScreen() {
   const router = useRouter();
+  const { t } = useTheme();
   const fetcher = useCallback((token: string) => loadRiders(token), []);
   const { data, loading, refreshing, error, refetch } = useApiQuery<RidersData>(fetcher, [], {
     cacheKey: 'riders',
@@ -76,6 +79,11 @@ export default function RidersScreen() {
     [data?.pendingWeek]
   );
 
+  const noVehicleCount = useMemo(
+    () => (data?.riders ?? []).filter((r) => !r.vehicle_number).length,
+    [data?.riders]
+  );
+
   // Earliest upcoming due date across the "due soon" set — surfaced on the Due
   // list header. (A per-rider week NUMBER is not available from the API; see
   // note in the recon report.)
@@ -92,6 +100,7 @@ export default function RidersScreen() {
     if (filter === 'overdue') list = list.filter((r) => overdueById.has(r.id));
     else if (filter === 'due') list = list.filter((r) => dueSoonById.has(r.id));
     else if (filter === 'pending') list = list.filter((r) => pendingWeekById.has(r.id));
+    else if (filter === 'no_vehicle') list = list.filter((r) => !r.vehicle_number);
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter(
@@ -114,9 +123,9 @@ export default function RidersScreen() {
   if (error) return <ErrorState message={error} onRetry={refetch} />;
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { backgroundColor: t.bg }]}>
       <View style={styles.controls}>
-        <SearchBar value={search} onChangeText={setSearch} placeholder="Search name, mobile, code" />
+        <SearchBar value={search} onChangeText={setSearch} placeholder="Search name, mobile, rider code" />
         <View style={styles.chips}>
           {FILTERS.map((f) => {
             const active = f.value === filter;
@@ -127,13 +136,19 @@ export default function RidersScreen() {
                 ? data?.dueSoon.length ?? 0
                 : f.value === 'pending'
                 ? data?.pendingWeek.length ?? 0
+                : f.value === 'no_vehicle'
+                ? noVehicleCount
                 : undefined;
             return (
               <Pressable
                 key={f.value}
                 onPress={() => setFilter(f.value)}
-                style={[styles.chip, active && styles.chipActive]}>
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                style={[
+                  styles.chip,
+                  { borderColor: t.border, backgroundColor: t.surface },
+                  active && { borderColor: t.accent, backgroundColor: t.accentSoft },
+                ]}>
+                <Text style={[styles.chipText, { color: active ? t.accentText : t.textMuted }]}>
                   {f.label}
                   {count !== undefined ? ` (${count})` : ''}
                 </Text>
@@ -148,14 +163,14 @@ export default function RidersScreen() {
         contentContainerStyle={styles.content}
         data={rows}
         keyExtractor={(r) => r.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refetch} tintColor={colors.accent} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refetch} tintColor={t.accent} />}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         keyboardDismissMode="on-drag"
         ListHeaderComponent={
           filter === 'due' && nextDueDate ? (
             <View style={styles.dueHeader}>
-              <FontAwesome name="calendar-o" size={12} color={colors.warning} />
-              <Text style={styles.dueHeaderText}>
+              <FontAwesome name="calendar-o" size={12} color={t.warningText} />
+              <Text style={[styles.dueHeaderText, { color: t.warningText }]}>
                 Upcoming rent week — earliest due {formatDate(nextDueDate)}
               </Text>
             </View>
@@ -164,69 +179,70 @@ export default function RidersScreen() {
         ListEmptyComponent={<EmptyState icon="users" message="No riders match." />}
         renderItem={({ item }) => {
           const overdue = overdueById.get(item.id);
-          // On the Due tab, surface the upcoming weekly due (next_due_date) that
-          // put this rider here — rent_paid_this_week only reflects today, not the
-          // specific upcoming week that triggered this filter.
-          const dueSoon = filter === 'due' ? dueSoonById.get(item.id) : undefined;
-          // On the This-week tab, surface the single unpaid week's rent
-          // (amount_due/period_amount are exactly one week). Takes precedence
-          // over the overdue subline here since this rider is at most one week
-          // behind and the tab is specifically about the current week.
-          const pendingWeek = filter === 'pending' ? pendingWeekById.get(item.id) : undefined;
+          const pendingWeek = pendingWeekById.get(item.id);
+          const dueSoon = dueSoonById.get(item.id);
+          const hasVehicle = Boolean(item.vehicle_number);
+          // Actual debt right now: prefer the whole-week overdue amount, else the
+          // current unpaid week's amount. (due_soon amounts are an UPCOMING week,
+          // not money owed yet — deliberately excluded.)
+          const owed = Number(overdue?.overdue_amount ?? pendingWeek?.amount_due ?? pendingWeek?.period_amount ?? 0);
           const pill = overdue ? { label: 'Overdue', tone: 'danger' as const } : riderStatusPill(item.status);
+
+          // Money state leads the second line; contextual detail follows it.
+          let sub: { icon: React.ComponentProps<typeof FontAwesome>['name']; color: string; text: string; bold?: boolean };
+          if (!item.rent_paid_this_week && owed > 0) {
+            const detail = overdue
+              ? ` · ${overdue.overdue_weeks} wk overdue`
+              : pendingWeek
+              ? `${
+                  pendingWeek.last_due_date
+                    ? ` · since ${formatDate(pendingWeek.last_due_date)} (${Math.max(0, pendingWeek.days_behind ?? 0)}d)`
+                    : ''
+                }${pendingWeek.next_due_date ? ` · due ${formatDate(pendingWeek.next_due_date)}` : ''}`
+              : '';
+            sub = { icon: 'exclamation-triangle', color: t.dangerText, text: `Owes ${formatINR(owed)}${detail}`, bold: true };
+          } else if (!hasVehicle) {
+            sub = { icon: 'motorcycle', color: t.textMuted, text: 'No vehicle — ready to allot' };
+          } else if (item.rent_paid_this_week) {
+            sub = {
+              icon: 'check-circle',
+              color: t.money,
+              text: `Rent paid this week ✓${dueSoon?.next_due_date ? ` · next due ${formatDate(dueSoon.next_due_date)}` : ''}`,
+            };
+          } else {
+            sub = {
+              icon: 'clock-o',
+              color: t.warningText,
+              text: `Rent due${dueSoon?.next_due_date ? ` · ${formatDate(dueSoon.next_due_date)}` : ''}`,
+            };
+          }
+
           return (
             <Pressable
-              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+              style={({ pressed }) => [
+                styles.row,
+                { backgroundColor: t.surface, borderColor: t.border },
+                pressed && styles.rowPressed,
+              ]}
               onPress={() => router.push({ pathname: '/rider/[id]', params: { id: item.id } })}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{item.name?.charAt(0) ?? '?'}</Text>
+              <View style={[styles.avatar, { backgroundColor: t.accentSoft }]}>
+                <Text style={[styles.avatarText, { color: t.accentText }]}>{item.name?.charAt(0) ?? '?'}</Text>
               </View>
               <View style={styles.main}>
-                <Text style={styles.name}>{item.name}</Text>
-                <Text style={styles.meta}>
+                <Text style={[styles.name, { color: t.text }]}>{item.name}</Text>
+                <View style={styles.subRow}>
+                  <FontAwesome name={sub.icon} size={11} color={sub.color} />
+                  <Text style={[sub.bold ? styles.subTextStrong : styles.subText, { color: sub.color }]}>
+                    {sub.text}
+                  </Text>
+                </View>
+                <Text style={[styles.meta, { color: t.textFaint }]}>
                   {item.rider_code}
                   {item.hub_name ? ` · ${item.hub_name}` : ''}
                 </Text>
-                {pendingWeek ? (
-                  <View style={styles.subRow}>
-                    <FontAwesome name="calendar-check-o" size={11} color={colors.warning} />
-                    <Text style={styles.subText}>
-                      This week · {formatINR(pendingWeek.amount_due ?? pendingWeek.period_amount)}
-                      {pendingWeek.last_due_date
-                        ? ` · since ${formatDate(pendingWeek.last_due_date)} (${Math.max(0, pendingWeek.days_behind ?? 0)}d)`
-                        : ''}
-                      {pendingWeek.next_due_date ? ` · due ${formatDate(pendingWeek.next_due_date)}` : ''}
-                    </Text>
-                  </View>
-                ) : overdue ? (
-                  <View style={styles.subRow}>
-                    <FontAwesome name="exclamation-triangle" size={11} color={colors.danger} />
-                    <Text style={styles.overdueText}>
-                      {overdue.overdue_weeks} wk overdue · {formatINR(overdue.overdue_amount)}
-                    </Text>
-                  </View>
-                ) : dueSoon ? (
-                  <View style={styles.subRow}>
-                    <FontAwesome name="clock-o" size={11} color={colors.warning} />
-                    <Text style={styles.subText}>
-                      Rent due{dueSoon.next_due_date ? ` · ${formatDate(dueSoon.next_due_date)}` : ''}
-                    </Text>
-                  </View>
-                ) : item.has_active_assignment === true ? (
-                  <View style={styles.subRow}>
-                    <FontAwesome
-                      name={item.rent_paid_this_week ? 'check-circle' : 'clock-o'}
-                      size={11}
-                      color={item.rent_paid_this_week ? colors.accent : colors.warning}
-                    />
-                    <Text style={styles.subText}>
-                      {item.rent_paid_this_week ? 'Rent paid this week' : 'Rent due'}
-                    </Text>
-                  </View>
-                ) : null}
               </View>
               <StatusPill label={pill.label} tone={pill.tone} />
-              <FontAwesome name="angle-right" size={18} color={colors.textFaint} />
+              <FontAwesome name="angle-right" size={18} color={t.textFaint} />
             </Pressable>
           );
         }}
@@ -236,31 +252,25 @@ export default function RidersScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
+  screen: { flex: 1 },
   list: { flex: 1 },
   controls: { padding: space(4), paddingBottom: space(2), gap: space(3) },
-  chips: { flexDirection: 'row', gap: space(2) },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space(2) },
   chip: {
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
     borderRadius: radius.full,
     paddingHorizontal: space(4),
     paddingVertical: space(2),
   },
-  chipActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
-  chipText: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
-  chipTextActive: { color: colors.accent },
+  chipText: { fontSize: 13, fontWeight: '600' },
   content: { padding: space(4), paddingTop: space(2), flexGrow: 1 },
   separator: { height: space(3) },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space(3),
-    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
     padding: space(3.5),
   },
   rowPressed: { opacity: 0.6 },
@@ -268,17 +278,16 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: radius.full,
-    backgroundColor: colors.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { color: colors.accent, fontWeight: '700', fontSize: 16 },
+  avatarText: { fontWeight: '700', fontSize: 16 },
   main: { flex: 1, gap: 3 },
-  name: { color: colors.text, fontSize: 15, fontWeight: '600' },
-  meta: { color: colors.textFaint, fontSize: 13 },
+  name: { fontSize: 15, fontWeight: '600' },
+  meta: { fontSize: 13 },
   subRow: { flexDirection: 'row', alignItems: 'center', gap: space(1.5) },
-  subText: { color: colors.textMuted, fontSize: 12 },
-  overdueText: { color: colors.danger, fontSize: 12, fontWeight: '600' },
+  subText: { fontSize: 12 },
+  subTextStrong: { fontSize: 12, fontWeight: '600' },
   dueHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -287,5 +296,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(1),
     marginBottom: space(1),
   },
-  dueHeaderText: { color: colors.warning, fontSize: 12, fontWeight: '600' },
+  dueHeaderText: { fontSize: 12, fontWeight: '600' },
 });

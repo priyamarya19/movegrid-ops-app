@@ -2,7 +2,7 @@ import { Stack } from 'expo-router';
 import { View, StyleSheet } from 'react-native';
 import NetworkLogger from 'react-native-network-logger';
 
-import { colors } from '@/constants/theme';
+import { useTheme } from '@/lib/theme-context';
 
 // Renders the captured request log. Failed requests (non-2xx and network
 // errors) are colour-coded with their status codes by the library's default UI,
@@ -12,16 +12,17 @@ import { colors } from '@/constants/theme';
 // that reach this screen are __DEV__-only, so an installed EAS build (APK/AAB)
 // neither records traffic nor exposes it here.
 export default function NetworkLogScreen() {
+  const { t } = useTheme();
   return (
     <>
       <Stack.Screen options={{ title: 'Network log', headerBackTitle: 'Back' }} />
-      <View style={styles.screen}>
-        <NetworkLogger theme="light" />
+      <View style={[styles.screen, { backgroundColor: t.bg }]}>
+        <NetworkLogger theme={t.statusBarStyle === 'light' ? 'dark' : 'light'} />
       </View>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
+  screen: { flex: 1 },
 });

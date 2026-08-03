@@ -4,9 +4,10 @@ import { FlatList, RefreshControl, Text, View, StyleSheet } from 'react-native';
 
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/QueryStates';
 import { StatusPill, type PillTone } from '@/components/ui/StatusPill';
-import { colors, radius, space } from '@/constants/theme';
+import { radius, space } from '@/constants/theme';
 import { getLeads, type Lead } from '@/lib/api';
 import { formatDate } from '@/lib/format';
+import { useTheme } from '@/lib/theme-context';
 import { useApiQuery } from '@/lib/useApiQuery';
 
 function leadStatusTone(status: string): PillTone {
@@ -30,6 +31,7 @@ function titleCase(s: string) {
 }
 
 export default function LeadsScreen() {
+  const { t } = useTheme();
   const fetcher = useCallback((token: string) => getLeads(token), []);
   const { data, loading, refreshing, error, refetch } = useApiQuery<Lead[]>(fetcher, [], { cacheKey: 'leads' });
 
@@ -42,23 +44,23 @@ export default function LeadsScreen() {
         <ErrorState message={error} onRetry={refetch} />
       ) : (
         <FlatList
-          style={styles.screen}
+          style={[styles.screen, { backgroundColor: t.bg }]}
           contentContainerStyle={styles.content}
           data={data ?? []}
           keyExtractor={(l) => l.id}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refetch} tintColor={colors.accent} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refetch} tintColor={t.accent} />}
           ItemSeparatorComponent={() => <View style={styles.sep} />}
           ListEmptyComponent={<EmptyState icon="user-plus" message="No leads yet." />}
           renderItem={({ item }) => (
-            <View style={styles.row}>
+            <View style={[styles.row, { backgroundColor: t.surface, borderColor: t.border }]}>
               <View style={styles.main}>
-                <Text style={styles.name}>{item.name}</Text>
-                <Text style={styles.meta}>
+                <Text style={[styles.name, { color: t.text }]}>{item.name}</Text>
+                <Text style={[styles.meta, { color: t.textFaint }]}>
                   {titleCase(item.type)}
                   {item.phone ? ` · ${item.phone}` : ''}
                   {item.city ? ` · ${item.city}` : ''}
                 </Text>
-                <Text style={styles.date}>{formatDate(item.created_at)}</Text>
+                <Text style={[styles.date, { color: t.textFaint }]}>{formatDate(item.created_at)}</Text>
               </View>
               <StatusPill label={titleCase(item.status)} tone={leadStatusTone(item.status)} />
             </View>
@@ -70,21 +72,19 @@ export default function LeadsScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
+  screen: { flex: 1 },
   content: { padding: space(4), flexGrow: 1 },
   sep: { height: space(3) },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space(3),
-    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
     padding: space(3.5),
   },
   main: { flex: 1, gap: 2 },
-  name: { color: colors.text, fontSize: 15, fontWeight: '600' },
-  meta: { color: colors.textFaint, fontSize: 13 },
-  date: { color: colors.textFaint, fontSize: 12 },
+  name: { fontSize: 15, fontWeight: '600' },
+  meta: { fontSize: 13 },
+  date: { fontSize: 12 },
 });

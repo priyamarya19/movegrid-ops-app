@@ -14,9 +14,10 @@ import {
   type PaymentProofValue,
 } from '@/components/ui/PaymentProof';
 import { SelectField, type SelectOption } from '@/components/ui/SelectField';
-import { colors, space } from '@/constants/theme';
+import { space } from '@/constants/theme';
 import { ApiError, getActiveAssignment, getVehicles, returnAllotment, type ActiveAssignment, type ReturnPayload, type Vehicle } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useTheme } from '@/lib/theme-context';
 import { formatDate, todayISO } from '@/lib/format';
 import { useIdempotencyKey } from '@/lib/idempotency';
 import { submitOrQueue } from '@/lib/outbox';
@@ -44,6 +45,7 @@ const today = () => todayISO();
 
 export default function ReturnVehicleScreen() {
   const { token } = useAuth();
+  const { t } = useTheme();
   const router = useRouter();
 
   // Currently-assigned vehicles for the dropdown — the opposite filter of
@@ -211,7 +213,7 @@ export default function ReturnVehicleScreen() {
     <>
       <Stack.Screen options={{ title: 'Return vehicle' }} />
       <FormScreen>
-        <Text style={styles.section}>Identify vehicle</Text>
+        <Text style={[styles.section, { color: t.accentText }]}>Identify vehicle</Text>
         <SelectField
           label="EV / scooter number"
           required
@@ -222,13 +224,13 @@ export default function ReturnVehicleScreen() {
           emptyText="No currently-assigned vehicles to return."
         />
         {evHint ? (
-          <Text style={[styles.evHint, { color: assignment ? colors.accent : looking ? colors.textFaint : colors.danger }]}>
+          <Text style={[styles.evHint, { color: assignment ? t.accentText : looking ? t.textFaint : t.dangerText }]}>
             {evHint}
           </Text>
         ) : null}
         <DateField label="Return date" required value={returnedDate} onChange={setReturnedDate} />
 
-        <Text style={styles.section}>Return details</Text>
+        <Text style={[styles.section, { color: t.accentText }]}>Return details</Text>
         <ChipSelect label="All rent paid?" options={RENT_CLEARED} value={rentCleared} onChange={setRentCleared} />
         {rentSettled ? (
           <PaymentProof value={settlement} onChange={setSettlement} folder="returns" label="Settlement mode" />
@@ -254,7 +256,7 @@ export default function ReturnVehicleScreen() {
           value={issueSwap}
           onChange={setIssueSwap}
         />
-        <Text style={styles.fieldHint}>
+        <Text style={[styles.fieldHint, { color: t.textFaint }]}>
           Keeps the rider&apos;s rent cycle going on the new vehicle instead of restarting — no lost paid rent, no charge for down days.
         </Text>
         {isIssueSwap ? (
@@ -309,10 +311,10 @@ export default function ReturnVehicleScreen() {
           editable={!submitting}
         />
 
-        <Text style={styles.section}>Scooter condition</Text>
+        <Text style={[styles.section, { color: t.accentText }]}>Scooter condition</Text>
         <MultiChipSelect label="Condition on return" options={CONDITIONS} values={conditions} onToggle={toggleCondition} />
 
-        <Text style={styles.section}>Return photos</Text>
+        <Text style={[styles.section, { color: t.accentText }]}>Return photos</Text>
         {photos.map((_, i) => (
           <ImageField key={i} label={`Photo ${i + 1}`} folder="returns" value={photos[i]} onChange={(k) => setPhoto(i, k)} />
         ))}
@@ -328,7 +330,6 @@ export default function ReturnVehicleScreen() {
 
 const styles = StyleSheet.create({
   section: {
-    color: colors.accent,
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
@@ -336,5 +337,5 @@ const styles = StyleSheet.create({
     marginTop: space(2),
   },
   evHint: { fontSize: 12, marginTop: -space(1) },
-  fieldHint: { fontSize: 12, color: colors.textFaint, marginTop: -space(1) },
+  fieldHint: { fontSize: 12, marginTop: -space(1) },
 });

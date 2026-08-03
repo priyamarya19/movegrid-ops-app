@@ -6,12 +6,14 @@ import { Alert, Pressable, RefreshControl, ScrollView, Text, View, StyleSheet } 
 import { Card } from '@/components/ui/Card';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/QueryStates';
 import { useToast } from '@/components/ui/Toast';
-import { colors, radius, space } from '@/constants/theme';
+import { radius, space } from '@/constants/theme';
 import { ApiError, actOnRentWaiver, getRentWaivers, type RentWaiverRequest } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate } from '@/lib/format';
+import { useTheme } from '@/lib/theme-context';
 
 export default function RentWaiversScreen() {
+  const { t } = useTheme();
   const { token } = useAuth();
   const toast = useToast();
   const [rows, setRows] = useState<RentWaiverRequest[] | null>(null);
@@ -79,18 +81,18 @@ export default function RentWaiversScreen() {
         <LoadingState label="Loading requests…" />
       ) : forbidden ? (
         <View style={styles.center}>
-          <FontAwesome name="lock" size={28} color={colors.textFaint} />
-          <Text style={styles.forbiddenTitle}>You don't have access to approve rent waivers</Text>
-          <Text style={styles.forbiddenSub}>Ask an admin to grant this in Settings if you need it.</Text>
+          <FontAwesome name="lock" size={28} color={t.textFaint} />
+          <Text style={[styles.forbiddenTitle, { color: t.text }]}>You don't have access to approve rent waivers</Text>
+          <Text style={[styles.forbiddenSub, { color: t.textMuted }]}>Ask an admin to grant this in Settings if you need it.</Text>
         </View>
       ) : error ? (
         <ErrorState message={error} onRetry={() => load()} />
       ) : (
         <ScrollView
-          style={styles.screen}
+          style={[styles.screen, { backgroundColor: t.bg }]}
           contentContainerStyle={styles.content}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.accent} />}>
-          <Text style={styles.subtitle}>
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={t.accent} />}>
+          <Text style={[styles.subtitle, { color: t.textMuted }]}>
             Waivers applied by the team and non-functional-day credits from issue-based swaps — full rent shows owed until you approve.
           </Text>
 
@@ -101,20 +103,20 @@ export default function RentWaiversScreen() {
               {(rows ?? []).map((r, i) => {
                 const busy = actingOn === r.id;
                 return (
-                  <View key={r.id} style={[styles.row, i > 0 && styles.rowBorder]}>
+                  <View key={r.id} style={[styles.row, i > 0 && { borderTopWidth: 1, borderTopColor: t.border }]}>
                     <View style={styles.rowHead}>
                       <View style={styles.rowMain}>
-                        <Text style={styles.riderName}>{r.rider_name}</Text>
-                        <Text style={styles.meta}>
+                        <Text style={[styles.riderName, { color: t.text }]}>{r.rider_name}</Text>
+                        <Text style={[styles.meta, { color: t.textFaint }]}>
                           {r.rider_code} · {r.ev_number ?? '—'}
                         </Text>
                       </View>
-                      <Text style={styles.days}>
+                      <Text style={[styles.days, { color: t.text }]}>
                         {r.non_functional_days} day{r.non_functional_days === 1 ? '' : 's'}
                       </Text>
                     </View>
-                    {r.reason ? <Text style={styles.reason}>{r.reason}</Text> : null}
-                    <Text style={styles.requestedMeta}>
+                    {r.reason ? <Text style={[styles.reason, { color: t.textMuted }]}>{r.reason}</Text> : null}
+                    <Text style={[styles.requestedMeta, { color: t.textMuted }]}>
                       Requested by {r.requested_by ?? '—'} · {formatDate(r.requested_at)}
                     </Text>
                     <View style={styles.actions}>
@@ -130,14 +132,22 @@ export default function RentWaiversScreen() {
                             ]
                           )
                         }
-                        style={({ pressed }) => [styles.actionBtn, styles.approveBtn, pressed && !busy && styles.pressed]}>
-                        <Text style={styles.approveText}>{busy ? 'Working…' : 'Approve'}</Text>
+                        style={({ pressed }) => [
+                          styles.actionBtn,
+                          { backgroundColor: t.accentSoft },
+                          pressed && !busy && styles.pressed,
+                        ]}>
+                        <Text style={[styles.approveText, { color: t.accentText }]}>{busy ? 'Working…' : 'Approve'}</Text>
                       </Pressable>
                       <Pressable
                         disabled={busy}
                         onPress={() => confirmReject(r)}
-                        style={({ pressed }) => [styles.actionBtn, styles.rejectBtn, pressed && !busy && styles.pressed]}>
-                        <Text style={styles.rejectText}>Reject</Text>
+                        style={({ pressed }) => [
+                          styles.actionBtn,
+                          { backgroundColor: t.dangerSoft },
+                          pressed && !busy && styles.pressed,
+                        ]}>
+                        <Text style={[styles.rejectText, { color: t.dangerText }]}>Reject</Text>
                       </Pressable>
                     </View>
                   </View>
@@ -152,7 +162,7 @@ export default function RentWaiversScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
+  screen: { flex: 1 },
   content: { padding: space(4), gap: space(4), paddingBottom: space(10) },
   center: {
     flexGrow: 1,
@@ -161,19 +171,18 @@ const styles = StyleSheet.create({
     padding: space(8),
     gap: space(3),
   },
-  forbiddenTitle: { color: colors.text, fontSize: 15, fontWeight: '700', textAlign: 'center' },
-  forbiddenSub: { color: colors.textMuted, fontSize: 13, textAlign: 'center' },
-  subtitle: { color: colors.textMuted, fontSize: 13 },
+  forbiddenTitle: { fontSize: 15, fontWeight: '700', textAlign: 'center' },
+  forbiddenSub: { fontSize: 13, textAlign: 'center' },
+  subtitle: { fontSize: 13 },
   listCard: { padding: 0 },
   row: { padding: space(4), gap: space(2) },
-  rowBorder: { borderTopWidth: 1, borderTopColor: colors.border },
   rowHead: { flexDirection: 'row', alignItems: 'flex-start', gap: space(3) },
   rowMain: { flex: 1, gap: 2 },
-  riderName: { color: colors.text, fontSize: 15, fontWeight: '600' },
-  meta: { color: colors.textFaint, fontSize: 12 },
-  days: { color: colors.text, fontSize: 15, fontWeight: '700' },
-  reason: { color: colors.textMuted, fontSize: 13 },
-  requestedMeta: { color: colors.textMuted, fontSize: 12 },
+  riderName: { fontSize: 15, fontWeight: '600' },
+  meta: { fontSize: 12 },
+  days: { fontSize: 15, fontWeight: '700' },
+  reason: { fontSize: 13 },
+  requestedMeta: { fontSize: 12 },
   actions: { flexDirection: 'row', gap: space(3), marginTop: space(1) },
   actionBtn: {
     flex: 1,
@@ -181,9 +190,7 @@ const styles = StyleSheet.create({
     paddingVertical: space(2.5),
     alignItems: 'center',
   },
-  approveBtn: { backgroundColor: colors.accentSoft },
-  rejectBtn: { backgroundColor: colors.dangerSoft },
-  approveText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
-  rejectText: { color: colors.danger, fontSize: 13, fontWeight: '700' },
+  approveText: { fontSize: 13, fontWeight: '700' },
+  rejectText: { fontSize: 13, fontWeight: '700' },
   pressed: { opacity: 0.7 },
 });

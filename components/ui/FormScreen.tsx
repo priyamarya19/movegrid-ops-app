@@ -1,12 +1,14 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View, StyleSheet } from 'react-native';
 
-import { colors, radius, space } from '@/constants/theme';
+import { radius, space } from '@/constants/theme';
+import { useTheme } from '@/lib/theme-context';
 
 export function FormScreen({ children }: { children: React.ReactNode }) {
+  const { t } = useTheme();
   return (
     <KeyboardAvoidingView
-      style={styles.flex}
+      style={[styles.flex, { backgroundColor: t.bg }]}
       behavior="padding"
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
       <ScrollView
@@ -21,10 +23,11 @@ export function FormScreen({ children }: { children: React.ReactNode }) {
 }
 
 export function ErrorBanner({ message }: { message: string }) {
+  const { t } = useTheme();
   return (
-    <View style={styles.errorBox}>
-      <FontAwesome name="exclamation-circle" size={14} color={colors.danger} />
-      <Text style={styles.errorText}>{message}</Text>
+    <View style={[styles.errorBox, { backgroundColor: t.dangerSoft }]}>
+      <FontAwesome name="exclamation-circle" size={14} color={t.dangerText} />
+      <Text style={[styles.errorText, { color: t.dangerText }]}>{message}</Text>
     </View>
   );
 }
@@ -32,7 +35,6 @@ export function ErrorBanner({ message }: { message: string }) {
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
-    backgroundColor: colors.bg,
   },
   content: {
     padding: space(4),
@@ -43,13 +45,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space(2),
-    backgroundColor: colors.dangerSoft,
     borderRadius: radius.md,
     padding: space(3),
   },
   errorText: {
     flex: 1,
-    color: colors.danger,
     fontSize: 13,
     fontWeight: '500',
   },

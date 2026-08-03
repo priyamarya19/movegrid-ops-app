@@ -3,9 +3,10 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, Text, StyleSheet } from 'react-native';
 
-import { colors, radius, space } from '@/constants/theme';
+import { radius, space } from '@/constants/theme';
 import { getRentWaivers } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useTheme } from '@/lib/theme-context';
 
 /**
  * Persistent indicator for pending rent waiver approvals — mirrors the dashboard's
@@ -16,6 +17,7 @@ import { useAuth } from '@/lib/auth-context';
  */
 export function RentWaiverBanner() {
   const { token } = useAuth();
+  const { t } = useTheme();
   const router = useRouter();
   const [count, setCount] = useState(0);
 
@@ -42,13 +44,17 @@ export function RentWaiverBanner() {
 
   return (
     <Pressable
-      style={({ pressed }) => [styles.banner, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.banner,
+        { backgroundColor: t.warningSoft, borderColor: t.warning },
+        pressed && styles.pressed,
+      ]}
       onPress={() => router.push('/rent-waivers')}>
-      <FontAwesome name="exclamation-circle" size={16} color={colors.warning} />
-      <Text style={styles.text}>
+      <FontAwesome name="exclamation-circle" size={16} color={t.warningText} />
+      <Text style={[styles.text, { color: t.warningText }]}>
         {count} rent waiver request{count === 1 ? '' : 's'} awaiting your approval
       </Text>
-      <FontAwesome name="angle-right" size={16} color={colors.warning} />
+      <FontAwesome name="angle-right" size={16} color={t.warningText} />
     </Pressable>
   );
 }
@@ -58,9 +64,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space(2),
-    backgroundColor: colors.warningSoft,
     borderWidth: 1,
-    borderColor: colors.warning,
     borderRadius: radius.lg,
     paddingVertical: space(3),
     paddingHorizontal: space(4),
@@ -70,7 +74,6 @@ const styles = StyleSheet.create({
   },
   text: {
     flex: 1,
-    color: colors.warning,
     fontSize: 13,
     fontWeight: '600',
   },

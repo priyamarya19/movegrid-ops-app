@@ -6,14 +6,16 @@ import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/Form';
 import { ErrorBanner, FormScreen } from '@/components/ui/FormScreen';
 import { useToast } from '@/components/ui/Toast';
-import { colors, radius, space } from '@/constants/theme';
+import { radius, space } from '@/constants/theme';
 import { addRiderPenalty } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useIdempotencyKey } from '@/lib/idempotency';
 import { submitOrQueue } from '@/lib/outbox';
+import { useTheme } from '@/lib/theme-context';
 
 export default function AddPenaltyScreen() {
   const { token } = useAuth();
+  const { t } = useTheme();
   const router = useRouter();
   const toast = useToast();
   const params = useLocalSearchParams<{ riderId: string; riderName?: string }>();
@@ -61,8 +63,8 @@ export default function AddPenaltyScreen() {
       <Stack.Screen options={{ title: 'Add penalty' }} />
       <FormScreen>
         {params.riderName ? (
-          <View style={styles.summary}>
-            <Text style={styles.rider}>{params.riderName}</Text>
+          <View style={[styles.summary, { backgroundColor: t.surface, borderColor: t.border }]}>
+            <Text style={[styles.rider, { color: t.text }]}>{params.riderName}</Text>
           </View>
         ) : null}
 
@@ -96,15 +98,12 @@ export default function AddPenaltyScreen() {
 
 const styles = StyleSheet.create({
   summary: {
-    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.lg,
     padding: space(4),
     gap: space(1),
   },
   rider: {
-    color: colors.text,
     fontSize: 16,
     fontWeight: '700',
   },

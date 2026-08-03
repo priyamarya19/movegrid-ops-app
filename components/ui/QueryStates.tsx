@@ -1,25 +1,28 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { ActivityIndicator, Pressable, Text, View, StyleSheet } from 'react-native';
 
-import { colors, radius, space } from '@/constants/theme';
+import { radius, space } from '@/constants/theme';
+import { useTheme } from '@/lib/theme-context';
 
 export function LoadingState({ label = 'Loading…' }: { label?: string }) {
+  const { t } = useTheme();
   return (
     <View style={styles.center}>
-      <ActivityIndicator color={colors.accent} />
-      <Text style={styles.muted}>{label}</Text>
+      <ActivityIndicator color={t.accent} />
+      <Text style={[styles.muted, { color: t.textMuted }]}>{label}</Text>
     </View>
   );
 }
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  const { t } = useTheme();
   return (
     <View style={styles.center}>
-      <FontAwesome name="exclamation-circle" size={28} color={colors.danger} />
-      <Text style={styles.errorText}>{message}</Text>
+      <FontAwesome name="exclamation-circle" size={28} color={t.dangerText} />
+      <Text style={[styles.errorText, { color: t.textMuted }]}>{message}</Text>
       {onRetry ? (
-        <Pressable style={styles.retry} onPress={onRetry} hitSlop={8}>
-          <Text style={styles.retryText}>Try again</Text>
+        <Pressable style={[styles.retry, { backgroundColor: t.accentSoft }]} onPress={onRetry} hitSlop={8}>
+          <Text style={[styles.retryText, { color: t.accentText }]}>Try again</Text>
         </Pressable>
       ) : null}
     </View>
@@ -27,10 +30,11 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 }
 
 export function EmptyState({ icon = 'inbox', message }: { icon?: React.ComponentProps<typeof FontAwesome>['name']; message: string }) {
+  const { t } = useTheme();
   return (
     <View style={styles.center}>
-      <FontAwesome name={icon} size={28} color={colors.textFaint} />
-      <Text style={styles.muted}>{message}</Text>
+      <FontAwesome name={icon} size={28} color={t.textFaint} />
+      <Text style={[styles.muted, { color: t.textMuted }]}>{message}</Text>
     </View>
   );
 }
@@ -44,22 +48,18 @@ const styles = StyleSheet.create({
     gap: space(3),
   },
   muted: {
-    color: colors.textMuted,
     fontSize: 14,
   },
   errorText: {
-    color: colors.textMuted,
     fontSize: 14,
     textAlign: 'center',
   },
   retry: {
-    backgroundColor: colors.accentSoft,
     borderRadius: radius.full,
     paddingHorizontal: space(5),
     paddingVertical: space(2.5),
   },
   retryText: {
-    color: colors.accent,
     fontWeight: '700',
     fontSize: 14,
   },

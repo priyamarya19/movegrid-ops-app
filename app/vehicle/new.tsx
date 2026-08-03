@@ -7,10 +7,11 @@ import { ChipSelect, DateField, TextField } from '@/components/ui/Form';
 import { ErrorBanner, FormScreen } from '@/components/ui/FormScreen';
 import { ImageField } from '@/components/ui/ImageField';
 import { useToast } from '@/components/ui/Toast';
-import { colors, space } from '@/constants/theme';
+import { space } from '@/constants/theme';
 import { createVehicle, getHubs, type Hub } from '@/lib/api';
 import { todayISO } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
+import { useTheme } from '@/lib/theme-context';
 import { useApiQuery } from '@/lib/useApiQuery';
 
 const OEMS = ['Shelby', 'NXTE', 'E-sprinto'].map((o) => ({ label: o, value: o }));
@@ -19,6 +20,7 @@ const BATTERY_PARTNERS = ['Battery Smart', 'Sun Mobility', 'Yuma', 'Mooving'].ma
 
 export default function NewVehicleScreen() {
   const { token } = useAuth();
+  const { t } = useTheme();
   const router = useRouter();
   const toast = useToast();
   const fetchHubs = useCallback((t: string) => getHubs(t), []);
@@ -90,33 +92,33 @@ export default function NewVehicleScreen() {
     <>
       <Stack.Screen options={{ title: 'Add vehicle' }} />
       <FormScreen>
-        <Text style={styles.section}>Identity</Text>
+        <Text style={[styles.section, { color: t.accentText }]}>Identity</Text>
         <TextField label="EV / scooter number" required value={ev} onChangeText={setEv} placeholder="e.g. MG0426N0051" autoCapitalize="characters" editable={!submitting} />
         <ChipSelect label="OEM / Assembler" options={OEMS} value={oem} onChange={setOem} />
         {hubOptions.length > 0 ? <ChipSelect label="Hub" options={hubOptions} value={hubId} onChange={setHubId} /> : null}
 
-        <Text style={styles.section}>Hardware numbers</Text>
+        <Text style={[styles.section, { color: t.accentText }]}>Hardware numbers</Text>
         <TextField label="Chassis number" required value={chassis} onChangeText={setChassis} placeholder="Chassis number" autoCapitalize="characters" editable={!submitting} />
         <TextField label="Motor number" value={motor} onChangeText={setMotor} placeholder="Optional" autoCapitalize="characters" editable={!submitting} />
         <TextField label="Controller number" value={controller} onChangeText={setController} placeholder="Optional" autoCapitalize="characters" editable={!submitting} />
 
-        <Text style={styles.section}>IOT</Text>
+        <Text style={[styles.section, { color: t.accentText }]}>IOT</Text>
         <TextField label="IOT / IMEI number" value={iotImei} onChangeText={setIotImei} placeholder="Optional" editable={!submitting} />
         <ChipSelect label="IOT partner" options={IOT_PARTNERS} value={iotPartner} onChange={setIotPartner} />
 
-        <Text style={styles.section}>Battery</Text>
+        <Text style={[styles.section, { color: t.accentText }]}>Battery</Text>
         <TextField label="Battery number" value={batteryNumber} onChangeText={setBatteryNumber} placeholder="Optional" autoCapitalize="characters" editable={!submitting} />
         <ChipSelect label="Battery partner" options={BATTERY_PARTNERS} value={batteryPartner} onChange={setBatteryPartner} />
 
-        <Text style={styles.section}>Purchase</Text>
+        <Text style={[styles.section, { color: t.accentText }]}>Purchase</Text>
         <DateField label="Purchase date" value={purchaseDate} onChange={setPurchaseDate} />
         <TextField label="Purchase price (₹)" value={price} onChangeText={setPrice} placeholder="0" keyboardType="numeric" editable={!submitting} />
 
-        <Text style={styles.section}>Documents</Text>
+        <Text style={[styles.section, { color: t.accentText }]}>Documents</Text>
         <ImageField label="Vehicle photo" folder="vehicles" value={photo} onChange={setPhoto} />
         <ImageField label="RC book" folder="vehicles" value={rcBook} onChange={setRcBook} />
 
-        <Text style={styles.section}>Additional photos</Text>
+        <Text style={[styles.section, { color: t.accentText }]}>Additional photos</Text>
         {vehiclePhotos.map((_, i) => (
           <ImageField
             key={i}
@@ -138,7 +140,6 @@ export default function NewVehicleScreen() {
 
 const styles = StyleSheet.create({
   section: {
-    color: colors.accent,
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',

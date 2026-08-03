@@ -8,9 +8,10 @@ import { ChipSelect, DateField, TextField } from '@/components/ui/Form';
 import { ErrorBanner, FormScreen } from '@/components/ui/FormScreen';
 import { ImageField } from '@/components/ui/ImageField';
 import { SelectField, type SelectOption } from '@/components/ui/SelectField';
-import { colors, space } from '@/constants/theme';
+import { space } from '@/constants/theme';
 import { ApiError, createAllotment, getRiders, getVehicles, lookupRider, lookupVehicle, type NewAllotment, type Rider, type RiderLookup, type Vehicle } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useTheme } from '@/lib/theme-context';
 import { todayISO, vehicleStatusPill } from '@/lib/format';
 import { useIdempotencyKey } from '@/lib/idempotency';
 import { submitOrQueue } from '@/lib/outbox';
@@ -37,6 +38,7 @@ const today = () => todayISO();
 
 export default function NewAllotmentScreen() {
   const { token } = useAuth();
+  const { t } = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams<{ mobile?: string }>();
 
@@ -319,7 +321,7 @@ export default function NewAllotmentScreen() {
             onDiscard={draft.discard}
           />
         ) : null}
-        <Text style={styles.section}>Vehicle</Text>
+        <Text style={[styles.section, { color: t.accentText }]}>Vehicle</Text>
         <SelectField
           label="Available vehicle"
           required
@@ -330,7 +332,7 @@ export default function NewAllotmentScreen() {
           emptyText="No available vehicles to allot."
         />
 
-        <Text style={styles.section}>Rider</Text>
+        <Text style={[styles.section, { color: t.accentText }]}>Rider</Text>
         <SelectField
           label="Rider"
           required
@@ -341,10 +343,10 @@ export default function NewAllotmentScreen() {
           emptyText="No riders without a vehicle to allot."
         />
         {riderLooking || (riderHint && !rider) ? (
-          <Text style={[styles.riderHint, !riderLooking && styles.riderHintError]}>{riderHint}</Text>
+          <Text style={[styles.riderHint, { color: riderLooking ? t.textFaint : t.dangerText }]}>{riderHint}</Text>
         ) : null}
 
-        <Text style={styles.section}>Allotment terms</Text>
+        <Text style={[styles.section, { color: t.accentText }]}>Allotment terms</Text>
         <ChipSelect label="Rider mode" options={RIDER_MODES} value={riderMode} onChange={setRiderMode} />
         <ChipSelect label="Rental plan" options={RENTAL_PLANS} value={rentalPlan} onChange={setRentalPlan} />
         <TextField
@@ -391,14 +393,14 @@ export default function NewAllotmentScreen() {
         />
         <DateField label="Allotment date" required value={assignedDate} onChange={setAssignedDate} />
 
-        <Text style={styles.section}>Documents</Text>
+        <Text style={[styles.section, { color: t.accentText }]}>Documents</Text>
         <ImageField label="Payment screenshot" folder="payments" value={paymentShot} onChange={setPaymentShot} />
         {needsProof ? (
-          <Text style={styles.proofHint}>Required — attach the payment screenshot for the amount collected.</Text>
+          <Text style={[styles.proofHint, { color: t.dangerText }]}>Required — attach the payment screenshot for the amount collected.</Text>
         ) : null}
         <ImageField label="Signed undertaking" folder="undertakings" value={undertaking} onChange={setUndertaking} />
 
-        <Text style={styles.section}>Allotment photos</Text>
+        <Text style={[styles.section, { color: t.accentText }]}>Allotment photos</Text>
         {pics.map((_, i) => (
           <ImageField
             key={i}
@@ -420,14 +422,12 @@ export default function NewAllotmentScreen() {
 
 const styles = StyleSheet.create({
   section: {
-    color: colors.accent,
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginTop: space(2),
   },
-  riderHint: { color: colors.textFaint, fontSize: 12, marginTop: -space(1) },
-  riderHintError: { color: colors.danger },
-  proofHint: { color: colors.danger, fontSize: 12, marginTop: -space(1) },
+  riderHint: { fontSize: 12, marginTop: -space(1) },
+  proofHint: { fontSize: 12, marginTop: -space(1) },
 });

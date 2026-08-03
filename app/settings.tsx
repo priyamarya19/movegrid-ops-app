@@ -9,7 +9,7 @@ import { ImageField } from '@/components/ui/ImageField';
 import { ErrorState, LoadingState } from '@/components/ui/QueryStates';
 import { RemoteImage } from '@/components/ui/RemoteImage';
 import { useToast } from '@/components/ui/Toast';
-import { colors, radius, space } from '@/constants/theme';
+import { radius, space } from '@/constants/theme';
 import { useTheme } from '@/lib/theme-context';
 import { changePassword, getProfile, updateProfile, type Profile } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -36,6 +36,7 @@ export default function SettingsScreen() {
 
 function SettingsBody({ profile, onChanged }: { profile: Profile; onChanged: () => void }) {
   const { token } = useAuth();
+  const { t } = useTheme();
   const toast = useToast();
 
   const [photoKey, setPhotoKey] = useState(profile.photo_url ?? '');
@@ -83,52 +84,55 @@ function SettingsBody({ profile, onChanged }: { profile: Profile; onChanged: () 
   const initial = (profile.name?.charAt(0) ?? '?').toUpperCase();
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      style={[styles.screen, { backgroundColor: t.bg }]}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled">
       {/* Identity */}
       <View style={styles.identity}>
         <RemoteImage
           fileKey={photoKey}
-          style={styles.avatar}
+          style={[styles.avatar, { backgroundColor: t.surfaceAlt }]}
           fallback={
-            <View style={styles.avatarFallback}>
-              <Text style={styles.avatarText}>{initial}</Text>
+            <View style={[styles.avatarFallback, { backgroundColor: t.accentSoft }]}>
+              <Text style={[styles.avatarText, { color: t.accentText }]}>{initial}</Text>
             </View>
           }
         />
-        <Text style={styles.name}>{profile.name}</Text>
-        <Text style={styles.sub}>
+        <Text style={[styles.name, { color: t.text }]}>{profile.name}</Text>
+        <Text style={[styles.sub, { color: t.textMuted }]}>
           {profile.email} · {roleLabel(profile.role)}
         </Text>
       </View>
 
-      <Text style={styles.section}>Profile photo</Text>
+      <Text style={[styles.section, { color: t.accentText }]}>Profile photo</Text>
       <ImageField label="Profile photo" folder="profiles" value={photoKey} onChange={onPhotoChange} />
 
-      <Text style={styles.section}>Profile</Text>
+      <Text style={[styles.section, { color: t.accentText }]}>Profile</Text>
       {/* Name/mobile/email are admin-managed on the web dashboard only — no
           self-edit from the app, for anyone, including the account owner. */}
       <View style={styles.readonly}>
-        <FontAwesome name="user-o" size={13} color={colors.textFaint} />
-        <Text style={styles.readonlyText}>{profile.name}</Text>
+        <FontAwesome name="user-o" size={13} color={t.textFaint} />
+        <Text style={[styles.readonlyText, { color: t.textMuted }]}>{profile.name}</Text>
       </View>
       <View style={styles.readonly}>
-        <FontAwesome name="phone" size={13} color={colors.textFaint} />
-        <Text style={styles.readonlyText}>{profile.mobile || '—'}</Text>
+        <FontAwesome name="phone" size={13} color={t.textFaint} />
+        <Text style={[styles.readonlyText, { color: t.textMuted }]}>{profile.mobile || '—'}</Text>
       </View>
       <View style={styles.readonly}>
-        <FontAwesome name="envelope-o" size={13} color={colors.textFaint} />
-        <Text style={styles.readonlyText}>{profile.email}</Text>
+        <FontAwesome name="envelope-o" size={13} color={t.textFaint} />
+        <Text style={[styles.readonlyText, { color: t.textMuted }]}>{profile.email}</Text>
       </View>
-      <Text style={styles.hint}>Name, mobile, and email can only be changed by an admin on the dashboard.</Text>
+      <Text style={[styles.hint, { color: t.textFaint }]}>Name, mobile, and email can only be changed by an admin on the dashboard.</Text>
 
-      <Text style={styles.section}>Appearance</Text>
+      <Text style={[styles.section, { color: t.accentText }]}>Appearance</Text>
       <ThemeToggleRow />
 
-      <Text style={styles.section}>Change password</Text>
+      <Text style={[styles.section, { color: t.accentText }]}>Change password</Text>
       <TextField label="Current password" value={current} onChangeText={setCurrent} secureTextEntry editable={!changingPw} />
       <TextField label="New password" value={next} onChangeText={setNext} secureTextEntry editable={!changingPw} hint="At least 8 characters" />
       <TextField label="Confirm new password" value={confirm} onChangeText={setConfirm} secureTextEntry editable={!changingPw} />
-      {pwError ? <Text style={styles.error}>{pwError}</Text> : null}
+      {pwError ? <Text style={[styles.error, { color: t.dangerText }]}>{pwError}</Text> : null}
       <Button
         title="Change password"
         onPress={submitPassword}
@@ -142,7 +146,7 @@ function SettingsBody({ profile, onChanged }: { profile: Profile; onChanged: () 
 // Light (neo-minimal, sunlight default) vs dark (ambient night mode).
 // Persisted per device; the whole app re-skins live as screens migrate to useTheme.
 function ThemeToggleRow() {
-  const { mode, setMode } = useTheme();
+  const { mode, setMode, t } = useTheme();
   return (
     <View style={styles.themeRow}>
       {(
@@ -156,10 +160,14 @@ function ThemeToggleRow() {
           <Pressable
             key={o.key}
             onPress={() => setMode(o.key)}
-            style={[styles.themeOption, active && styles.themeOptionActive]}>
-            <FontAwesome name={o.icon} size={18} color={active ? colors.accent : colors.textMuted} />
-            <Text style={[styles.themeLabel, active && styles.themeLabelActive]}>{o.label}</Text>
-            <Text style={styles.themeHint}>{o.hint}</Text>
+            style={[
+              styles.themeOption,
+              { borderColor: t.border, backgroundColor: t.surface },
+              active && { borderColor: t.accent, backgroundColor: t.accentSoft },
+            ]}>
+            <FontAwesome name={o.icon} size={18} color={active ? t.accentText : t.textMuted} />
+            <Text style={[styles.themeLabel, { color: active ? t.text : t.textMuted }]}>{o.label}</Text>
+            <Text style={[styles.themeHint, { color: t.textFaint }]}>{o.hint}</Text>
           </Pressable>
         );
       })}
@@ -176,30 +184,24 @@ const styles = StyleSheet.create({
     paddingVertical: space(4),
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
   },
-  themeOptionActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
-  themeLabel: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
-  themeLabelActive: { color: colors.text },
-  themeHint: { color: colors.textFaint, fontSize: 11 },
-  screen: { flex: 1, backgroundColor: colors.bg },
+  themeLabel: { fontSize: 14, fontWeight: '700' },
+  themeHint: { fontSize: 11 },
+  screen: { flex: 1 },
   content: { padding: space(4), gap: space(3), paddingBottom: space(10) },
   identity: { alignItems: 'center', gap: space(2), marginBottom: space(2) },
-  avatar: { width: 84, height: 84, borderRadius: radius.full, backgroundColor: colors.surfaceAlt },
+  avatar: { width: 84, height: 84, borderRadius: radius.full },
   avatarFallback: {
     width: 84,
     height: 84,
     borderRadius: radius.full,
-    backgroundColor: colors.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { color: colors.accent, fontWeight: '700', fontSize: 34 },
-  name: { color: colors.text, fontSize: 20, fontWeight: '700', letterSpacing: -0.3 },
-  sub: { color: colors.textMuted, fontSize: 13 },
+  avatarText: { fontWeight: '700', fontSize: 34 },
+  name: { fontSize: 20, fontWeight: '700', letterSpacing: -0.3 },
+  sub: { fontSize: 13 },
   section: {
-    color: colors.accent,
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
@@ -212,7 +214,7 @@ const styles = StyleSheet.create({
     gap: space(2),
     paddingVertical: space(1),
   },
-  readonlyText: { color: colors.textMuted, fontSize: 13 },
-  hint: { color: colors.textFaint, fontSize: 12, marginTop: space(1) },
-  error: { color: colors.danger, fontSize: 13, fontWeight: '500' },
+  readonlyText: { fontSize: 13 },
+  hint: { fontSize: 12, marginTop: space(1) },
+  error: { fontSize: 13, fontWeight: '500' },
 });

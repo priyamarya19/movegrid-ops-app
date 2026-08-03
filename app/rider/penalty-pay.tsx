@@ -12,15 +12,17 @@ import {
   type PaymentProofValue,
 } from '@/components/ui/PaymentProof';
 import { useToast } from '@/components/ui/Toast';
-import { colors, radius, space } from '@/constants/theme';
+import { radius, space } from '@/constants/theme';
 import { updateRiderPenalty, type UpdateRiderPenalty } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { formatINR } from '@/lib/format';
 import { useIdempotencyKey } from '@/lib/idempotency';
 import { submitOrQueue } from '@/lib/outbox';
+import { useTheme } from '@/lib/theme-context';
 
 export default function PenaltyPayScreen() {
   const { token } = useAuth();
+  const { t } = useTheme();
   const router = useRouter();
   const toast = useToast();
   const params = useLocalSearchParams<{
@@ -72,9 +74,9 @@ export default function PenaltyPayScreen() {
     <>
       <Stack.Screen options={{ title: 'Pay penalty' }} />
       <FormScreen>
-        <View style={styles.summary}>
-          {params.detail ? <Text style={styles.detail}>{params.detail}</Text> : null}
-          {params.amount ? <Text style={styles.amount}>{formatINR(params.amount)}</Text> : null}
+        <View style={[styles.summary, { backgroundColor: t.surface, borderColor: t.border }]}>
+          {params.detail ? <Text style={[styles.detail, { color: t.text }]}>{params.detail}</Text> : null}
+          {params.amount ? <Text style={[styles.amount, { color: t.textMuted }]}>{formatINR(params.amount)}</Text> : null}
         </View>
 
         <PaymentProof value={proof} onChange={setProof} folder="penalties" />
@@ -89,20 +91,16 @@ export default function PenaltyPayScreen() {
 
 const styles = StyleSheet.create({
   summary: {
-    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.lg,
     padding: space(4),
     gap: space(1),
   },
   detail: {
-    color: colors.text,
     fontSize: 15,
     fontWeight: '600',
   },
   amount: {
-    color: colors.textMuted,
     fontSize: 14,
     fontWeight: '600',
   },

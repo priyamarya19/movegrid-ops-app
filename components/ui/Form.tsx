@@ -2,8 +2,9 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useState } from 'react';
 import { Platform, Pressable, Text, TextInput, View, StyleSheet, type TextInputProps } from 'react-native';
 
-import { colors, radius, space } from '@/constants/theme';
+import { radius, space } from '@/constants/theme';
 import { formatDate, toLocalISODate } from '@/lib/format';
+import { useTheme } from '@/lib/theme-context';
 
 type FieldTone = 'default' | 'success' | 'error';
 
@@ -15,18 +16,19 @@ type TextFieldProps = TextInputProps & {
 };
 
 export function TextField({ label, required, hint, tone = 'default', style, ...inputProps }: TextFieldProps) {
+  const { t } = useTheme();
   const borderColor =
-    tone === 'success' ? colors.accent : tone === 'error' ? colors.danger : colors.border;
-  const hintColor = tone === 'error' ? colors.danger : tone === 'success' ? colors.accent : colors.textFaint;
+    tone === 'success' ? t.accent : tone === 'error' ? t.danger : t.border;
+  const hintColor = tone === 'error' ? t.dangerText : tone === 'success' ? t.accentText : t.textFaint;
   return (
     <View style={styles.field}>
-      <Text style={styles.label}>
+      <Text style={[styles.label, { color: t.textMuted }]}>
         {label}
-        {required ? <Text style={styles.req}> *</Text> : null}
+        {required ? <Text style={{ color: t.dangerText }}> *</Text> : null}
       </Text>
       <TextInput
-        style={[styles.input, { borderColor }, style]}
-        placeholderTextColor={colors.textFaint}
+        style={[styles.input, { backgroundColor: t.surface, color: t.text, borderColor }, style]}
+        placeholderTextColor={t.textFaint}
         {...inputProps}
       />
       {hint ? <Text style={[styles.hint, { color: hintColor }]}>{hint}</Text> : null}
@@ -47,9 +49,10 @@ export function ChipSelect({
   value: string | null;
   onChange: (value: string) => void;
 }) {
+  const { t } = useTheme();
   return (
     <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, { color: t.textMuted }]}>{label}</Text>
       <View style={styles.chips}>
         {options.map((opt) => {
           const active = opt.value === value;
@@ -57,8 +60,13 @@ export function ChipSelect({
             <Pressable
               key={opt.value}
               onPress={() => onChange(opt.value)}
-              style={[styles.chip, active && styles.chipActive]}>
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>{opt.label}</Text>
+              style={[
+                styles.chip,
+                active
+                  ? { borderColor: t.accent, backgroundColor: t.accentSoft }
+                  : { borderColor: t.border, backgroundColor: t.surface },
+              ]}>
+              <Text style={[styles.chipText, { color: active ? t.accentText : t.textMuted }]}>{opt.label}</Text>
             </Pressable>
           );
         })}
@@ -78,9 +86,10 @@ export function MultiChipSelect({
   values: string[];
   onToggle: (value: string) => void;
 }) {
+  const { t } = useTheme();
   return (
     <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, { color: t.textMuted }]}>{label}</Text>
       <View style={styles.chips}>
         {options.map((opt) => {
           const active = values.includes(opt.value);
@@ -88,8 +97,13 @@ export function MultiChipSelect({
             <Pressable
               key={opt.value}
               onPress={() => onToggle(opt.value)}
-              style={[styles.chip, active && styles.chipActive]}>
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>{opt.label}</Text>
+              style={[
+                styles.chip,
+                active
+                  ? { borderColor: t.accent, backgroundColor: t.accentSoft }
+                  : { borderColor: t.border, backgroundColor: t.surface },
+              ]}>
+              <Text style={[styles.chipText, { color: active ? t.accentText : t.textMuted }]}>{opt.label}</Text>
             </Pressable>
           );
         })}
@@ -110,17 +124,20 @@ export function DateField({
   value: string;
   onChange: (iso: string) => void;
 }) {
+  const { t } = useTheme();
   const [open, setOpen] = useState(false);
   const current = value ? new Date(value) : new Date();
 
   return (
     <View style={styles.field}>
-      <Text style={styles.label}>
+      <Text style={[styles.label, { color: t.textMuted }]}>
         {label}
-        {required ? <Text style={styles.req}> *</Text> : null}
+        {required ? <Text style={{ color: t.dangerText }}> *</Text> : null}
       </Text>
-      <Pressable style={styles.input} onPress={() => setOpen(true)}>
-        <Text style={styles.dateText}>{formatDate(value)}</Text>
+      <Pressable
+        style={[styles.input, { backgroundColor: t.surface, borderColor: t.border }]}
+        onPress={() => setOpen(true)}>
+        <Text style={[styles.dateText, { color: t.text }]}>{formatDate(value)}</Text>
       </Pressable>
       {open ? (
         <DateTimePicker
@@ -145,25 +162,18 @@ const styles = StyleSheet.create({
     gap: space(1.5),
   },
   dateText: {
-    color: colors.text,
     fontSize: 15,
   },
   label: {
-    color: colors.textMuted,
     fontSize: 13,
     fontWeight: '600',
   },
-  req: {
-    color: colors.danger,
-  },
   input: {
-    backgroundColor: colors.surface,
     borderWidth: 1,
     borderRadius: radius.md,
     paddingHorizontal: space(4),
     paddingVertical: space(3.5),
     fontSize: 15,
-    color: colors.text,
   },
   hint: {
     fontSize: 12,
@@ -175,22 +185,12 @@ const styles = StyleSheet.create({
   },
   chip: {
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
     borderRadius: radius.full,
     paddingHorizontal: space(4),
     paddingVertical: space(2.5),
   },
-  chipActive: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accentSoft,
-  },
   chipText: {
-    color: colors.textMuted,
     fontSize: 14,
     fontWeight: '600',
-  },
-  chipTextActive: {
-    color: colors.accent,
   },
 });

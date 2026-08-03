@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/Form';
 import { ErrorBanner, FormScreen } from '@/components/ui/FormScreen';
 import { useToast } from '@/components/ui/Toast';
-import { colors, radius, space } from '@/constants/theme';
+import { radius, space } from '@/constants/theme';
 import { createRentWaiver } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { formatINR } from '@/lib/format';
+import { useTheme } from '@/lib/theme-context';
 
 // Apply for a rent waiver on the rider's active assignment. The waiver can be
 // entered as days (fractional allowed — 1.5) or as an ₹ amount converted at the
@@ -17,6 +18,7 @@ import { formatINR } from '@/lib/format';
 // directly.
 export default function ApplyWaiverScreen() {
   const { token } = useAuth();
+  const { t } = useTheme();
   const router = useRouter();
   const toast = useToast();
   const params = useLocalSearchParams<{ riderId: string; riderName?: string; dailyRate?: string }>();
@@ -64,20 +66,23 @@ export default function ApplyWaiverScreen() {
       <Stack.Screen options={{ title: 'Apply rent waiver' }} />
       <FormScreen>
         {params.riderName ? (
-          <View style={styles.summary}>
-            <Text style={styles.rider}>{params.riderName}</Text>
-            {dailyRate ? <Text style={styles.rate}>Daily rate {formatINR(dailyRate)}</Text> : null}
+          <View style={[styles.summary, { backgroundColor: t.surface, borderColor: t.border }]}>
+            <Text style={[styles.rider, { color: t.text }]}>{params.riderName}</Text>
+            {dailyRate ? <Text style={[styles.rate, { color: t.textMuted }]}>Daily rate {formatINR(dailyRate)}</Text> : null}
           </View>
         ) : null}
 
-        <View style={styles.toggle}>
+        <View style={[styles.toggle, { borderColor: t.border }]}>
           {(['days', 'amount'] as const).map((m) => (
             <Pressable
               key={m}
               onPress={() => setMode(m)}
               disabled={submitting}
-              style={[styles.toggleBtn, mode === m && styles.toggleActive]}>
-              <Text style={[styles.toggleText, mode === m && styles.toggleTextActive]}>
+              style={[
+                styles.toggleBtn,
+                { backgroundColor: mode === m ? t.accentSoft : t.surface },
+              ]}>
+              <Text style={[styles.toggleText, { color: mode === m ? t.accentText : t.textMuted }]}>
                 {m === 'days' ? 'Days' : '₹ Amount'}
               </Text>
             </Pressable>
@@ -108,7 +113,7 @@ export default function ApplyWaiverScreen() {
         {error ? <ErrorBanner message={error} /> : null}
 
         <Button title="Submit for approval" onPress={onSubmit} loading={submitting} disabled={!canSubmit} />
-        <Text style={styles.note}>Needs approval on the Rent Waivers screen before it credits the rider.</Text>
+        <Text style={[styles.note, { color: t.textFaint }]}>Needs approval on the Rent Waivers screen before it credits the rider.</Text>
       </FormScreen>
     </>
   );
@@ -116,25 +121,20 @@ export default function ApplyWaiverScreen() {
 
 const styles = StyleSheet.create({
   summary: {
-    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.lg,
     padding: space(4),
     gap: space(1),
   },
-  rider: { color: colors.text, fontSize: 16, fontWeight: '700' },
-  rate: { color: colors.textMuted, fontSize: 13 },
+  rider: { fontSize: 16, fontWeight: '700' },
+  rate: { fontSize: 13 },
   toggle: {
     flexDirection: 'row',
     borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.md,
     overflow: 'hidden',
   },
-  toggleBtn: { flex: 1, paddingVertical: space(2.5), alignItems: 'center', backgroundColor: colors.surface },
-  toggleActive: { backgroundColor: colors.accentSoft },
-  toggleText: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
-  toggleTextActive: { color: colors.accent },
-  note: { color: colors.textFaint, fontSize: 12, textAlign: 'center' },
+  toggleBtn: { flex: 1, paddingVertical: space(2.5), alignItems: 'center' },
+  toggleText: { fontSize: 13, fontWeight: '700' },
+  note: { fontSize: 12, textAlign: 'center' },
 });

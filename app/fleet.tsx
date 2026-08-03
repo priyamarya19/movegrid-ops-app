@@ -6,9 +6,10 @@ import { FlatList, Pressable, RefreshControl, Text, View, StyleSheet } from 'rea
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/QueryStates';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { StatusPill } from '@/components/ui/StatusPill';
-import { colors, radius, space } from '@/constants/theme';
+import { radius, space } from '@/constants/theme';
 import { vehicleStatusPill } from '@/lib/format';
 import { getVehicles, type Vehicle } from '@/lib/api';
+import { useTheme } from '@/lib/theme-context';
 import { useApiQuery } from '@/lib/useApiQuery';
 
 // label -> predicate over the stored status value
@@ -22,6 +23,7 @@ const FILTERS: { label: string; match: (s: string) => boolean }[] = [
 ];
 
 export default function VehiclesScreen() {
+  const { t } = useTheme();
   const router = useRouter();
   const fetcher = useCallback((token: string) => getVehicles(token), []);
   const { data, loading, refreshing, error, refetch } = useApiQuery<Vehicle[]>(fetcher, [], {
@@ -50,7 +52,7 @@ export default function VehiclesScreen() {
   if (error) return <ErrorState message={error} onRetry={refetch} />;
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { backgroundColor: t.bg }]}>
       <Stack.Screen options={{ title: 'Fleet', headerBackTitle: 'Back' }} />
       <View style={styles.controls}>
         <SearchBar value={search} onChangeText={setSearch} placeholder="Search EV no., model, rider" />
@@ -58,8 +60,17 @@ export default function VehiclesScreen() {
           {FILTERS.map((f, i) => {
             const active = i === filterIdx;
             return (
-              <Pressable key={f.label} onPress={() => setFilterIdx(i)} style={[styles.chip, active && styles.chipActive]}>
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{f.label}</Text>
+              <Pressable
+                key={f.label}
+                onPress={() => setFilterIdx(i)}
+                style={[
+                  styles.chip,
+                  { backgroundColor: t.surface, borderColor: t.border },
+                  active && { backgroundColor: t.accentSoft, borderColor: t.accent },
+                ]}>
+                <Text style={[styles.chipText, { color: active ? t.accentText : t.textMuted }]}>
+                  {f.label}
+                </Text>
               </Pressable>
             );
           })}
@@ -71,7 +82,7 @@ export default function VehiclesScreen() {
         contentContainerStyle={styles.content}
         data={rows}
         keyExtractor={(v) => v.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refetch} tintColor={colors.accent} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refetch} tintColor={t.accent} />}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         keyboardDismissMode="on-drag"
         ListEmptyComponent={<EmptyState icon="car" message="No vehicles match." />}
@@ -80,21 +91,27 @@ export default function VehiclesScreen() {
           const model = [item.oem, item.model_name].filter(Boolean).join(' ');
           return (
             <Pressable
-              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+              style={({ pressed }) => [
+                styles.row,
+                { backgroundColor: t.surface, borderColor: t.border },
+                pressed && styles.rowPressed,
+              ]}
               onPress={() => router.push({ pathname: '/vehicle/[id]', params: { id: item.id } })}>
-              <View style={styles.icon}>
-                <FontAwesome name="motorcycle" size={18} color={colors.accent} />
+              <View style={[styles.icon, { backgroundColor: t.accentSoft }]}>
+                <FontAwesome name="motorcycle" size={18} color={t.accentText} />
               </View>
               <View style={styles.main}>
-                <Text style={styles.reg}>{item.ev_number}</Text>
-                <Text style={styles.meta}>
+                <Text style={[styles.reg, { color: t.text }]}>{item.ev_number}</Text>
+                <Text style={[styles.meta, { color: t.textFaint }]}>
                   {model || 'Unknown model'}
                   {item.hub_name ? ` · ${item.hub_name}` : ''}
                 </Text>
-                {item.assigned_rider ? <Text style={styles.rider}>Rider: {item.assigned_rider}</Text> : null}
+                {item.assigned_rider ? (
+                  <Text style={[styles.rider, { color: t.textMuted }]}>Rider: {item.assigned_rider}</Text>
+                ) : null}
               </View>
               <StatusPill label={pill.label} tone={pill.tone} />
-              <FontAwesome name="angle-right" size={18} color={colors.textFaint} />
+              <FontAwesome name="angle-right" size={18} color={t.textFaint} />
             </Pressable>
           );
         }}
@@ -104,31 +121,25 @@ export default function VehiclesScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
+  screen: { flex: 1 },
   list: { flex: 1 },
   controls: { padding: space(4), paddingBottom: space(2), gap: space(3) },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space(2) },
   chip: {
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
     borderRadius: radius.full,
     paddingHorizontal: space(3.5),
     paddingVertical: space(2),
   },
-  chipActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
-  chipText: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
-  chipTextActive: { color: colors.accent },
+  chipText: { fontSize: 13, fontWeight: '600' },
   content: { padding: space(4), paddingTop: space(2), flexGrow: 1 },
   separator: { height: space(3) },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space(3),
-    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
     padding: space(3.5),
   },
   rowPressed: { opacity: 0.6 },
@@ -136,12 +147,11 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: radius.md,
-    backgroundColor: colors.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   main: { flex: 1, gap: 2 },
-  reg: { color: colors.text, fontSize: 15, fontWeight: '600' },
-  meta: { color: colors.textFaint, fontSize: 13 },
-  rider: { color: colors.textMuted, fontSize: 12 },
+  reg: { fontSize: 15, fontWeight: '600' },
+  meta: { fontSize: 13 },
+  rider: { fontSize: 12 },
 });

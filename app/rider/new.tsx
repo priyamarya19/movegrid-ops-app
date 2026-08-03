@@ -1,3 +1,4 @@
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, Text, View, StyleSheet } from 'react-native';
@@ -7,9 +8,10 @@ import { DraftBanner } from '@/components/ui/DraftBanner';
 import { TextField } from '@/components/ui/Form';
 import { ErrorBanner, FormScreen } from '@/components/ui/FormScreen';
 import { ImageField } from '@/components/ui/ImageField';
-import { colors, radius, space } from '@/constants/theme';
+import { radius, space } from '@/constants/theme';
 import { ApiError, checkBlacklist, createRider, type NewRider } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useTheme } from '@/lib/theme-context';
 import { useIdempotencyKey } from '@/lib/idempotency';
 import { submitOrQueue } from '@/lib/outbox';
 import { useFormDraft } from '@/lib/useFormDraft';
@@ -53,6 +55,7 @@ type FormState = typeof EMPTY;
 
 export default function NewRiderScreen() {
   const { token } = useAuth();
+  const { t } = useTheme();
   const router = useRouter();
 
   const [step, setStep] = useState(0);
@@ -226,11 +229,11 @@ export default function NewRiderScreen() {
             onDiscard={draft.discard}
           />
         ) : null}
-        <Text style={styles.stepLabel}>Step {step + 1} of 2</Text>
+        <Text style={[styles.stepLabel, { color: t.textFaint }]}>Step {step + 1} of 2</Text>
 
         {step === 0 ? (
           <>
-            <Text style={styles.section}>Personal info</Text>
+            <Text style={[styles.section, { color: t.accentText }]}>Personal info</Text>
             <TextField label="Full name" required value={form.name} onChangeText={(v) => set('name', v)} placeholder="Ravi Kumar" editable={!submitting} />
             <TextField label="Nickname" value={form.nickname} onChangeText={(v) => set('nickname', v)} placeholder="Ravi" editable={!submitting} />
             <TextField
@@ -250,7 +253,7 @@ export default function NewRiderScreen() {
             <TextField label="Permanent address" value={form.permanent_address} onChangeText={(v) => set('permanent_address', v)} placeholder="From Aadhaar" multiline editable={!submitting} />
             <TextField label="Address map link" value={form.address_map_link} onChangeText={(v) => set('address_map_link', v)} placeholder="Google Maps URL" autoCapitalize="none" editable={!submitting} />
 
-            <Text style={styles.section}>Identity documents</Text>
+            <Text style={[styles.section, { color: t.accentText }]}>Identity documents</Text>
             <TextField
               label="Aadhaar number"
               value={form.aadhaar}
@@ -264,21 +267,22 @@ export default function NewRiderScreen() {
               hint={!aadhaarValid ? 'Aadhaar must be 12 digits' : undefined}
             />
             {blacklist ? (
-              <View style={styles.blacklist}>
-                <Text style={styles.blacklistText}>⚠ {blacklist}</Text>
+              <View style={[styles.blacklist, { backgroundColor: t.dangerSoft }]}>
+                <FontAwesome name="exclamation-triangle" size={13} color={t.dangerText} />
+                <Text style={[styles.blacklistText, { color: t.dangerText }]}>{blacklist}</Text>
               </View>
             ) : null}
             {blacklistCheckFailed ? (
-              <View style={styles.blacklistWarn}>
-                <Text style={styles.blacklistWarnText}>
+              <View style={[styles.blacklistWarn, { backgroundColor: t.surfaceAlt }]}>
+                <Text style={[styles.blacklistWarnText, { color: t.textMuted }]}>
                   Couldn't verify blacklist status — check the connection and retry before allotting.
                 </Text>
               </View>
             ) : null}
             {aadhaarValid && !blacklist && !blacklistCheckFailed && checkedAadhaar !== aadhaarClean ? (
-              <View style={styles.blacklistWarn}>
-                <Text style={styles.blacklistWarnText}>
-                  Tap outside the Aadhaar field to run the blacklist check before continuing.
+              <View style={[styles.blacklistWarn, { backgroundColor: t.surfaceAlt }]}>
+                <Text style={[styles.blacklistWarnText, { color: t.textMuted }]}>
+                  Close the keyboard to run the blacklist check.
                 </Text>
               </View>
             ) : null}
@@ -300,7 +304,7 @@ export default function NewRiderScreen() {
             <ImageField label="DL front" folder="kyc" value={form.dl_front_url} onChange={(k) => set('dl_front_url', k)} />
             <ImageField label="DL back" folder="kyc" value={form.dl_back_url} onChange={(k) => set('dl_back_url', k)} />
 
-            <Text style={styles.section}>Additional photos</Text>
+            <Text style={[styles.section, { color: t.accentText }]}>Additional photos</Text>
             {additionalPhotos.map((_, i) => (
               <ImageField
                 key={i}
@@ -316,7 +320,7 @@ export default function NewRiderScreen() {
           </>
         ) : (
           <>
-            <Text style={styles.section}>Bank details</Text>
+            <Text style={[styles.section, { color: t.accentText }]}>Bank details</Text>
             <TextField label="Bank name" value={form.bank} onChangeText={(v) => set('bank', v)} placeholder="SBI / HDFC / etc." editable={!submitting} />
             <TextField label="Account number" value={form.account_number} onChangeText={(v) => set('account_number', v)} placeholder="Account number" keyboardType="number-pad" editable={!submitting} />
             <TextField
@@ -332,7 +336,7 @@ export default function NewRiderScreen() {
             />
             <ImageField label="Passbook / cancelled cheque" folder="kyc" value={form.bank_doc_url} onChange={(k) => set('bank_doc_url', k)} />
 
-            <Text style={styles.section}>References</Text>
+            <Text style={[styles.section, { color: t.accentText }]}>References</Text>
             <TextField label="Family ref name" value={form.family_ref_name} onChangeText={(v) => set('family_ref_name', v)} placeholder="Name" editable={!submitting} />
             <TextField
               label="Family ref mobile"
@@ -363,8 +367,11 @@ export default function NewRiderScreen() {
             {error ? <ErrorBanner message={error} /> : null}
 
             <View style={styles.navRow}>
-              <Pressable style={styles.backBtn} onPress={() => setStep(0)} disabled={submitting}>
-                <Text style={styles.backText}>Back</Text>
+              <Pressable
+                style={[styles.backBtn, { borderColor: t.border, backgroundColor: t.surface }]}
+                onPress={() => setStep(0)}
+                disabled={submitting}>
+                <Text style={[styles.backText, { color: t.textMuted }]}>Back</Text>
               </Pressable>
               <View style={styles.submitWrap}>
                 <Button title="Add rider" onPress={onSubmit} loading={submitting} disabled={!page2Valid} />
@@ -379,12 +386,10 @@ export default function NewRiderScreen() {
 
 const styles = StyleSheet.create({
   stepLabel: {
-    color: colors.textFaint,
     fontSize: 13,
     fontWeight: '600',
   },
   section: {
-    color: colors.accent,
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
@@ -392,22 +397,22 @@ const styles = StyleSheet.create({
     marginTop: space(2),
   },
   blacklist: {
-    backgroundColor: colors.dangerSoft,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space(2),
     borderRadius: radius.md,
     padding: space(3),
   },
   blacklistText: {
-    color: colors.danger,
+    flex: 1,
     fontSize: 13,
     fontWeight: '600',
   },
   blacklistWarn: {
-    backgroundColor: colors.surfaceAlt,
     borderRadius: radius.md,
     padding: space(3),
   },
   blacklistWarnText: {
-    color: colors.textMuted,
     fontSize: 13,
     fontWeight: '500',
   },
@@ -421,11 +426,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(6),
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
   },
   backText: {
-    color: colors.textMuted,
     fontSize: 16,
     fontWeight: '700',
   },

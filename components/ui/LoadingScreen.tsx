@@ -1,7 +1,8 @@
 import LottieView from 'lottie-react-native';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { colors, space } from '@/constants/theme';
+import { space } from '@/constants/theme';
+import { useTheme } from '@/lib/theme-context';
 
 /**
  * Full-screen branded loading state. Renders the route-loading Lottie
@@ -9,15 +10,16 @@ import { colors, space } from '@/constants/theme';
  * Used while the persisted auth session is resolving.
  */
 export function LoadingScreen({ caption = 'Loading…' }: { caption?: string }) {
+  const { t } = useTheme();
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: t.bg }]}>
       <LottieView
         source={require('@/assets/lottie/route-loading.json')}
         autoPlay
         loop
         style={styles.lottie}
       />
-      {caption ? <Text style={styles.caption}>{caption}</Text> : null}
+      {caption ? <Text style={[styles.caption, { color: t.textMuted }]}>{caption}</Text> : null}
     </View>
   );
 }
@@ -27,7 +29,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.bg,
   },
   lottie: {
     width: 200,
@@ -36,7 +37,6 @@ const styles = StyleSheet.create({
   caption: {
     marginTop: space(2),
     fontSize: 14,
-    color: colors.textMuted,
   },
 });
 

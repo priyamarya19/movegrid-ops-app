@@ -1,18 +1,23 @@
 import { View, StyleSheet, type ViewProps } from 'react-native';
 
-import { colors, radius, space } from '@/constants/theme';
+import { radius, space } from '@/constants/theme';
+import { useTheme } from '@/lib/theme-context';
 
 /** A surface card matching the dashboard's rounded, hairline-bordered panels. */
 export function Card({ style, ...props }: ViewProps) {
-  return <View style={[styles.card, style]} {...props} />;
+  const { t } = useTheme();
+  return (
+    <View
+      style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }, style]}
+      {...props}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
     padding: space(4),
   },
 });

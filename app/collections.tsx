@@ -1,11 +1,13 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, Text, TextInput, View, StyleSheet } from 'react-native';
+import { FlatList, Pressable, RefreshControl, Text, View, StyleSheet } from 'react-native';
 
 import { Card } from '@/components/ui/Card';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/QueryStates';
-import { colors, radius, space } from '@/constants/theme';
+import { SearchBar } from '@/components/ui/SearchBar';
+import { radius, space } from '@/constants/theme';
+import type { ThemeTokens } from '@/constants/theme';
 import {
   getCollectionsChase,
   getCollectionsPayments,
@@ -14,6 +16,7 @@ import {
   type CollectionsChase,
 } from '@/lib/api';
 import { formatDate, formatINR } from '@/lib/format';
+import { useTheme } from '@/lib/theme-context';
 import { useApiQuery } from '@/lib/useApiQuery';
 
 const PAGE_SIZE = 25;
@@ -33,27 +36,28 @@ const RANGES = [
   { key: 'all', label: 'All time' },
 ] as const;
 
-const daysColor = (d: number) =>
-  d >= 8 ? colors.danger : d >= 1 ? colors.warning : colors.accent;
+const daysColor = (d: number, t: ThemeTokens) =>
+  d >= 8 ? t.dangerText : d >= 1 ? t.warningText : t.accentText;
 
 export default function CollectionsScreen() {
+  const { t } = useTheme();
   const [tab, setTab] = useState<'chase' | 'payments'>('chase');
   return (
     <>
       <Stack.Screen options={{ title: 'Collections', headerBackTitle: 'Back' }} />
-      <View style={styles.screen}>
-        <View style={styles.tabs}>
+      <View style={[styles.screen, { backgroundColor: t.bg }]}>
+        <View style={[styles.tabs, { borderColor: t.border }]}>
           {(
             [
               { key: 'chase', label: 'Chase list' },
               { key: 'payments', label: 'Payments received' },
             ] as const
-          ).map((t) => (
+          ).map((tb) => (
             <Pressable
-              key={t.key}
-              onPress={() => setTab(t.key)}
-              style={[styles.tabBtn, tab === t.key && styles.tabActive]}>
-              <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>{t.label}</Text>
+              key={tb.key}
+              onPress={() => setTab(tb.key)}
+              style={[styles.tabBtn, { backgroundColor: tab === tb.key ? t.accentSoft : t.surface }]}>
+              <Text style={[styles.tabText, { color: tab === tb.key ? t.accentText : t.textMuted }]}>{tb.label}</Text>
             </Pressable>
           ))}
         </View>
@@ -64,8 +68,9 @@ export default function CollectionsScreen() {
 }
 
 export function ChaseTab() {
+  const { t } = useTheme();
   const router = useRouter();
-  const fetcher = useCallback((t: string) => getCollectionsChase(t), []);
+  const fetcher = useCallback((tok: string) => getCollectionsChase(tok), []);
   const { data, loading, refreshing, error, refetch } = useApiQuery<CollectionsChase>(fetcher, [], {
     cacheKey: 'collections:chase',
   });
@@ -101,33 +106,31 @@ export function ChaseTab() {
       data={shown}
       keyExtractor={(r) => r.rider_id}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refetch} tintColor={colors.accent} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refetch} tintColor={t.accent} />}
       ListHeaderComponent={
         <View style={styles.headerWrap}>
           <View style={styles.statRow}>
             <Card style={styles.stat}>
-              <Text style={styles.statLabel}>Outstanding</Text>
-              <Text style={[styles.statValue, { color: colors.danger }]}>{formatINR(outstandingTotal)}</Text>
+              <Text style={[styles.statLabel, { color: t.textMuted }]}>Outstanding</Text>
+              <Text style={[styles.statValue, { color: t.dangerText }]}>{formatINR(outstandingTotal)}</Text>
             </Card>
             <Card style={styles.stat}>
-              <Text style={styles.statLabel}>Riders behind</Text>
-              <Text style={styles.statValue}>{owed.length}</Text>
+              <Text style={[styles.statLabel, { color: t.textMuted }]}>Riders behind</Text>
+              <Text style={[styles.statValue, { color: t.text }]}>{owed.length}</Text>
             </Card>
             <Card style={styles.stat}>
-              <Text style={styles.statLabel}>Collection %</Text>
-              <Text style={[styles.statValue, { color: colors.accent }]}>{data?.summary.pct ?? 0}%</Text>
+              <Text style={[styles.statLabel, { color: t.textMuted }]}>Collection %</Text>
+              <Text style={[styles.statValue, { color: t.accentText }]}>{data?.summary.pct ?? 0}%</Text>
             </Card>
           </View>
 
-          <TextInput
+          <SearchBar
             value={search}
             onChangeText={(v) => {
               setSearch(v);
               setVisible(PAGE_SIZE);
             }}
-            placeholder="Search name, rider ID or allotment ID"
-            placeholderTextColor={colors.textFaint}
-            style={styles.search}
+            placeholder="Search name, rider code or allotment ID"
           />
 
           <View style={styles.chips}>
@@ -138,11 +141,15 @@ export function ChaseTab() {
                   setBucket(b.key);
                   setVisible(PAGE_SIZE);
                 }}
-                style={[styles.chip, bucket === b.key && styles.chipActive]}>
-                <Text style={[styles.chipText, bucket === b.key && styles.chipTextActive]}>{b.label}</Text>
+                style={[
+                  styles.chip,
+                  { borderColor: t.border, backgroundColor: t.surface },
+                  bucket === b.key && { borderColor: t.accent, backgroundColor: t.accentSoft },
+                ]}>
+                <Text style={[styles.chipText, { color: bucket === b.key ? t.accentText : t.textMuted }]}>{b.label}</Text>
               </Pressable>
             ))}
-            <Text style={styles.countText}>
+            <Text style={[styles.countText, { color: t.textFaint }]}>
               {rows.length} rider{rows.length === 1 ? '' : 's'}
             </Text>
           </View>
@@ -152,36 +159,50 @@ export function ChaseTab() {
       renderItem={({ item }: { item: ChaseRow }) => (
         <Pressable
           onPress={() => router.push({ pathname: '/rider/[id]', params: { id: item.rider_id } })}
-          style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+          style={({ pressed }) => [
+            styles.row,
+            { backgroundColor: t.surface, borderColor: t.border },
+            pressed && styles.pressed,
+          ]}>
           <View style={styles.rowMain}>
-            <Text style={styles.rowName}>{item.name}</Text>
-            <Text style={styles.rowMeta}>
+            <Text style={[styles.rowName, { color: t.text }]}>{item.name}</Text>
+            <Text style={[styles.rowMeta, { color: t.textMuted }]}>
               {item.rider_code ?? '—'}
               {item.allotment_code ? ` · ${item.allotment_code}` : ''} · due {formatDate(item.next_due_date)}
             </Text>
             {item.sheet_note ? (
-              <Text style={styles.note} numberOfLines={1}>
-                📝 {item.sheet_note}
-              </Text>
+              <View style={styles.noteRow}>
+                <FontAwesome name="pencil" size={12} color={t.textFaint} />
+                <Text style={[styles.note, { color: t.textFaint }]} numberOfLines={1}>
+                  {item.sheet_note}
+                </Text>
+              </View>
             ) : null}
           </View>
           <View style={styles.rowRight}>
-            <Text style={styles.amount}>{formatINR(Math.round(Number(item.outstanding)))}</Text>
-            <Text style={[styles.days, { color: daysColor(item.days_behind) }]}>{item.days_behind}d behind</Text>
+            <Text style={[styles.amount, { color: t.text }]}>{formatINR(Math.round(Number(item.outstanding)))}</Text>
+            <Text style={[styles.days, { color: daysColor(item.days_behind, t) }]}>{item.days_behind}d behind</Text>
           </View>
           <Pressable
             onPress={() =>
               router.push({ pathname: '/rent-collect', params: { riderId: item.rider_id, riderName: item.name } })
             }
-            style={({ pressed }) => [styles.collectBtn, pressed && { backgroundColor: '#00A878' }]}>
-            <Text style={styles.collectBtnText}>Collect</Text>
+            style={({ pressed }) => [
+              styles.collectBtn,
+              { backgroundColor: pressed ? t.accentPressed : t.accent },
+            ]}>
+            <Text style={[styles.collectBtnText, { color: t.onAccent }]}>Collect</Text>
           </Pressable>
         </Pressable>
       )}
       ListFooterComponent={
         rows.length > visible ? (
-          <Pressable onPress={() => setVisible((v) => v + PAGE_SIZE)} style={styles.loadMore}>
-            <Text style={styles.loadMoreText}>Show {Math.min(PAGE_SIZE, rows.length - visible)} more</Text>
+          <Pressable
+            onPress={() => setVisible((v) => v + PAGE_SIZE)}
+            style={[styles.loadMore, { borderColor: t.border, backgroundColor: t.surface }]}>
+            <Text style={[styles.loadMoreText, { color: t.accentText }]}>
+              Show {Math.min(PAGE_SIZE, rows.length - visible)} more
+            </Text>
           </Pressable>
         ) : null
       }
@@ -190,10 +211,11 @@ export function ChaseTab() {
 }
 
 export function PaymentsTab() {
+  const { t } = useTheme();
   const router = useRouter();
   const [range, setRange] = useState<(typeof RANGES)[number]['key']>('last7');
   const fetcher = useCallback(
-    (t: string) => getCollectionsPayments(t, range === 'all' ? undefined : range),
+    (tok: string) => getCollectionsPayments(tok, range === 'all' ? undefined : range),
     [range]
   );
   const { data, loading, refreshing, error, refetch } = useApiQuery<{ payments: CollectionPayment[]; total: number }>(
@@ -214,7 +236,7 @@ export function PaymentsTab() {
       data={shown}
       keyExtractor={(_, i) => String(i)}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refetch} tintColor={colors.accent} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refetch} tintColor={t.accent} />}
       ListHeaderComponent={
         <View style={styles.headerWrap}>
           <View style={styles.chips}>
@@ -225,14 +247,18 @@ export function PaymentsTab() {
                   setRange(r.key);
                   setVisible(PAGE_SIZE);
                 }}
-                style={[styles.chip, range === r.key && styles.chipActive]}>
-                <Text style={[styles.chipText, range === r.key && styles.chipTextActive]}>{r.label}</Text>
+                style={[
+                  styles.chip,
+                  { borderColor: t.border, backgroundColor: t.surface },
+                  range === r.key && { borderColor: t.accent, backgroundColor: t.accentSoft },
+                ]}>
+                <Text style={[styles.chipText, { color: range === r.key ? t.accentText : t.textMuted }]}>{r.label}</Text>
               </Pressable>
             ))}
           </View>
-          <Text style={styles.totalLine}>
+          <Text style={[styles.totalLine, { color: t.textMuted }]}>
             {payments.length} collection{payments.length === 1 ? '' : 's'} ·{' '}
-            <Text style={styles.totalAmt}>{formatINR(Math.round(Number(data?.total ?? 0)))}</Text> collected
+            <Text style={[styles.totalAmt, { color: t.money }]}>{formatINR(Math.round(Number(data?.total ?? 0)))}</Text> collected
           </Text>
         </View>
       }
@@ -240,29 +266,37 @@ export function PaymentsTab() {
       renderItem={({ item }: { item: CollectionPayment }) => (
         <Pressable
           onPress={() => router.push({ pathname: '/rider/[id]', params: { id: item.rider_id } })}
-          style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+          style={({ pressed }) => [
+            styles.row,
+            { backgroundColor: t.surface, borderColor: t.border },
+            pressed && styles.pressed,
+          ]}>
           <View style={styles.rowMain}>
-            <Text style={styles.rowName}>{item.name}</Text>
-            <Text style={styles.rowMeta}>
+            <Text style={[styles.rowName, { color: t.text }]}>{item.name}</Text>
+            <Text style={[styles.rowMeta, { color: t.textMuted }]}>
               {formatDate(item.payment_date)}
               {item.payment_mode ? ` · ${item.payment_mode}` : ''}
               {item.ev_number ? ` · ${item.ev_number}` : ''}
             </Text>
             {item.period_start && item.period_end ? (
-              <Text style={styles.note}>
+              <Text style={[styles.note, { color: t.textFaint }]}>
                 Covers {formatDate(item.period_start)} – {formatDate(item.period_end)}
               </Text>
             ) : null}
           </View>
-          <Text style={[styles.amount, { color: colors.accent }]}>
+          <Text style={[styles.amount, { color: t.money }]}>
             {formatINR(Math.round(Number(item.amount_collected)))}
           </Text>
         </Pressable>
       )}
       ListFooterComponent={
         payments.length > visible ? (
-          <Pressable onPress={() => setVisible((v) => v + PAGE_SIZE)} style={styles.loadMore}>
-            <Text style={styles.loadMoreText}>Show {Math.min(PAGE_SIZE, payments.length - visible)} more</Text>
+          <Pressable
+            onPress={() => setVisible((v) => v + PAGE_SIZE)}
+            style={[styles.loadMore, { borderColor: t.border, backgroundColor: t.surface }]}>
+            <Text style={[styles.loadMoreText, { color: t.accentText }]}>
+              Show {Math.min(PAGE_SIZE, payments.length - visible)} more
+            </Text>
           </Pressable>
         ) : null
       }
@@ -271,85 +305,64 @@ export function PaymentsTab() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
+  screen: { flex: 1 },
   tabs: {
     flexDirection: 'row',
     margin: space(4),
     marginBottom: 0,
     borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.md,
     overflow: 'hidden',
   },
-  tabBtn: { flex: 1, paddingVertical: space(2.5), alignItems: 'center', backgroundColor: colors.surface },
-  tabActive: { backgroundColor: colors.accentSoft },
-  tabText: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
-  tabTextActive: { color: colors.accent },
+  tabBtn: { flex: 1, paddingVertical: space(2.5), alignItems: 'center' },
+  tabText: { fontSize: 13, fontWeight: '700' },
   content: { padding: space(4), paddingBottom: space(10) },
   headerWrap: { gap: space(3), marginBottom: space(3) },
   statRow: { flexDirection: 'row', gap: space(2) },
   stat: { flex: 1, padding: space(3), gap: 2 },
-  statLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '600', textTransform: 'uppercase' },
-  statValue: { color: colors.text, fontSize: 16, fontWeight: '700' },
-  search: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: space(3.5),
-    paddingVertical: space(2.5),
-    color: colors.text,
-    fontSize: 14,
-  },
+  statLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase' },
+  statValue: { fontSize: 16, fontWeight: '700' },
   chips: { flexDirection: 'row', alignItems: 'center', gap: space(2), flexWrap: 'wrap' },
   chip: {
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
     borderRadius: radius.full,
     paddingHorizontal: space(3),
     paddingVertical: space(1.5),
   },
-  chipActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
-  chipText: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
-  chipTextActive: { color: colors.accent },
-  countText: { color: colors.textFaint, fontSize: 12, marginLeft: 'auto' },
+  chipText: { fontSize: 12, fontWeight: '700' },
+  countText: { fontSize: 12, marginLeft: 'auto' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space(3),
-    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.lg,
     padding: space(3.5),
     marginBottom: space(2),
   },
   pressed: { opacity: 0.6 },
   rowMain: { flex: 1, gap: 2 },
-  rowName: { color: colors.text, fontSize: 15, fontWeight: '600' },
-  rowMeta: { color: colors.textMuted, fontSize: 12 },
-  note: { color: colors.textFaint, fontSize: 12 },
+  rowName: { fontSize: 15, fontWeight: '600' },
+  rowMeta: { fontSize: 12 },
+  noteRow: { flexDirection: 'row', alignItems: 'center', gap: space(1) },
+  note: { fontSize: 12, flexShrink: 1 },
   rowRight: { alignItems: 'flex-end', gap: 2 },
-  amount: { color: colors.text, fontSize: 15, fontWeight: '700' },
+  amount: { fontSize: 15, fontWeight: '700' },
   days: { fontSize: 12, fontWeight: '700' },
-  totalLine: { color: colors.textMuted, fontSize: 13 },
-  totalAmt: { color: colors.accent, fontWeight: '700' },
+  totalLine: { fontSize: 13 },
+  totalAmt: { fontWeight: '700' },
   loadMore: {
     alignItems: 'center',
     paddingVertical: space(3),
     borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.lg,
-    backgroundColor: colors.surface,
   },
-  loadMoreText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
+  loadMoreText: { fontSize: 13, fontWeight: '700' },
   collectBtn: {
-    backgroundColor: colors.accent,
     borderRadius: radius.full,
     paddingHorizontal: space(3.5),
     minHeight: 38,
     justifyContent: 'center',
   },
-  collectBtnText: { color: '#06281F', fontSize: 13, fontWeight: '800' },
+  collectBtnText: { fontSize: 13, fontWeight: '800' },
 });

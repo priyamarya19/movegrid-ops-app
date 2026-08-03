@@ -216,7 +216,6 @@ function AppStack() {
           lib/network-log), and the shake gesture that opens it is also
           __DEV__-gated, so the route only needs to exist during development. */}
       {__DEV__ ? <Stack.Screen name="network-log" options={{ headerShown: true }} /> : null}
-      <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
     </Stack>
   );
 }
