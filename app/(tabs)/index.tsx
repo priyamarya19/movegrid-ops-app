@@ -11,7 +11,7 @@ import { ErrorState, LoadingState } from '@/components/ui/QueryStates';
 import { StatCard } from '@/components/ui/StatCard';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { colors, radius, space } from '@/constants/theme';
-import { getOverdueRiders, getRentSummary, getRiders, getVehicles, type OverdueRider, type RentSummary } from '@/lib/api';
+import { getOverdueRiders, getRentSummary, getRiderCounts, getVehicles, type OverdueRider, type RentSummary } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { formatINR } from '@/lib/format';
 import { useApiQuery } from '@/lib/useApiQuery';
@@ -31,15 +31,15 @@ type Dashboard = {
 };
 
 async function loadDashboard(token: string): Promise<Dashboard> {
-  const [riders, vehicles, summary, overdue] = await Promise.all([
-    getRiders(token),
+  const [riderCounts, vehicles, summary, overdue] = await Promise.all([
+    getRiderCounts(token),
     getVehicles(token),
     getRentSummary(token),
     getOverdueRiders(token),
   ]);
 
   return {
-    activeRiders: riders.filter((r) => r.status === 'active').length,
+    activeRiders: riderCounts.active,
     vehicles: vehicles.length,
     allotments: vehicles.filter((v) => v.status === 'assigned' || v.assigned_rider).length,
     summary,

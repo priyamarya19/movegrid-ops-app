@@ -181,6 +181,13 @@ export type Rider = {
   partial_paid?: number | null;
 };
 
+/** Exact rider counts by status, computed in SQL — never subject to list caps. */
+export type RiderCounts = { total: number; active: number; pending: number; inactive: number };
+
+export function getRiderCounts(token: string) {
+  return apiFetch<RiderCounts>('/api/riders/counts', { token });
+}
+
 export function getRiders(
   token: string,
   params?: { rent?: 'overdue' | 'due_soon' | 'pending_week'; status?: string }
