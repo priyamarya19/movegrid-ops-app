@@ -3,7 +3,8 @@ import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Modal, Pressable, Text, View, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 import * as Updates from 'expo-updates';
@@ -60,47 +61,113 @@ const NavDark: Theme = {
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
-// Expo's default update check is fire-and-forget: it downloads in the background
-// but only takes effect on the *next* cold start, so a fix can silently sit
-// undelivered indefinitely if the app isn't reopened at just the right moment.
-// Explicitly await the check+download here so a fresh launch ends up on the
-// latest published update instead of depending on a reopen ritual.
-//
-// But reloadAsync() mid-session is destructive: on 2G a field worker can be
-// deep in a 25-field KYC form by the time a slow download finishes, and an
-// unprompted reload would wipe their in-progress screen. So we only hot-reload
-// when the download lands within a short window of cold start — before anyone
-// could realistically be mid-form. Past that window we leave the fetched update
-// staged; Expo applies it automatically on the next cold start with nothing
-// lost. (Drafts also survive a reload, but not restarting mid-form is simplest.)
-const RELOAD_WINDOW_MS = 8000;
-
-async function applyPendingUpdate() {
+// Updates are MANDATORY: when a new bundle is downloaded, a non-dismissible
+// dialog blocks the app until the user taps Continue, which reloads into it.
+// No silent deferral — every phone runs the latest money logic. Nothing is
+// lost on reload: form drafts (useFormDraft) and queued writes (outbox)
+// persist across restarts. Requested by Priyam 2026-08-04.
+async function fetchPendingUpdate(): Promise<boolean> {
   if (__DEV__) {
     await recordUpdateStatus({ checkedAt: new Date().toISOString(), phase: 'dev_skip' });
-    return;
+    return false;
   }
-  const startedAt = Date.now();
   try {
     const result = await Updates.checkForUpdateAsync();
     if (!result.isAvailable) {
       await recordUpdateStatus({ checkedAt: new Date().toISOString(), phase: 'no_update' });
-      return;
+      return false;
     }
     await recordUpdateStatus({ checkedAt: new Date().toISOString(), phase: 'downloading' });
     await Updates.fetchUpdateAsync();
-    if (Date.now() - startedAt <= RELOAD_WINDOW_MS) {
-      await recordUpdateStatus({ checkedAt: new Date().toISOString(), phase: 'reloading' });
-      await Updates.reloadAsync();
-    } else {
-      // Too slow to reload safely — the update is staged for the next launch.
-      await recordUpdateStatus({ checkedAt: new Date().toISOString(), phase: 'downloaded_deferred' });
-    }
+    await recordUpdateStatus({ checkedAt: new Date().toISOString(), phase: 'downloaded_deferred' });
+    return true;
   } catch (e) {
-    // No network, no update service, etc. — just keep running on the current bundle.
+    // No network, no update service, etc. — keep running on the current bundle.
     await recordUpdateStatus({ checkedAt: new Date().toISOString(), phase: 'error', detail: String(e) });
+    return false;
   }
 }
+
+// Blocking update dialog: no backdrop tap, no back button, no way out except
+// Continue. Rendered above everything once the new bundle is on disk.
+function UpdateGate() {
+  const { t } = useTheme();
+  const [ready, setReady] = useState(false);
+  const [reloading, setReloading] = useState(false);
+
+  useEffect(() => {
+    fetchPendingUpdate().then((hasUpdate) => {
+      if (hasUpdate) setReady(true);
+    });
+  }, []);
+
+  const onContinue = async () => {
+    setReloading(true);
+    await recordUpdateStatus({ checkedAt: new Date().toISOString(), phase: 'reloading' });
+    try {
+      await Updates.reloadAsync();
+    } catch {
+      // Reload failed (rare) — the update still applies on the next cold start.
+      setReloading(false);
+      setReady(false);
+    }
+  };
+
+  if (!ready) return null;
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={() => {}}>
+      <View style={updateStyles.backdrop}>
+        <View style={[updateStyles.card, { backgroundColor: t.surfaceRaised, borderColor: t.border }]}>
+          <Text style={[updateStyles.title, { color: t.text }]}>Update required</Text>
+          <Text style={[updateStyles.body, { color: t.textMuted }]}>
+            A new version of the app is ready. Tap Continue to update — your saved drafts and pending
+            entries are kept.
+          </Text>
+          <Pressable
+            onPress={onContinue}
+            disabled={reloading}
+            style={({ pressed }) => [
+              updateStyles.button,
+              { backgroundColor: pressed || reloading ? t.accentPressed : t.accent },
+            ]}>
+            {reloading ? (
+              <ActivityIndicator color={t.onAccent} />
+            ) : (
+              <Text style={[updateStyles.buttonText, { color: t.onAccent }]}>Continue</Text>
+            )}
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const updateStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  card: {
+    alignSelf: 'stretch',
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 24,
+    gap: 12,
+  },
+  title: { fontSize: 19, fontWeight: '800' },
+  body: { fontSize: 14, lineHeight: 20 },
+  button: {
+    marginTop: 8,
+    borderRadius: 12,
+    minHeight: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonText: { fontSize: 16, fontWeight: '700' },
+});
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -111,10 +178,6 @@ export default function RootLayout() {
   useEffect(() => {
     if (error) throw error;
   }, [error]);
-
-  useEffect(() => {
-    applyPendingUpdate();
-  }, []);
 
   if (!loaded) {
     return null;
@@ -140,6 +203,7 @@ function ThemedShell() {
         <StatusBar style={t.statusBarStyle} />
         <OutboxSync />
         <RootNavigator />
+        <UpdateGate />
       </ToastProvider>
     </NavThemeProvider>
   );
