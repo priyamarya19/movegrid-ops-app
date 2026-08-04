@@ -91,7 +91,12 @@ function RiderBody({ data, refreshing, onRefresh }: { data: RiderDetail; refresh
           <>
             <FieldCard
               rows={[
-                { label: 'EV number', value: activeAssignment.ev_number },
+                {
+                  label: 'EV number',
+                  value: activeAssignment.ev_number,
+                  onPress: () =>
+                    router.push({ pathname: '/vehicle/[id]', params: { id: activeAssignment.vehicle_id } }),
+                },
                 {
                   label: 'Model',
                   value: [activeAssignment.oem, activeAssignment.model_name].filter(Boolean).join(' ') || '—',
