@@ -1,5 +1,7 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
+
+import { RiderPicker, type PickedRider } from '@/components/RiderPicker';
 import { Alert, Text, View, StyleSheet } from 'react-native';
 
 import { Button } from '@/components/ui/Button';
@@ -22,12 +24,47 @@ const OLD_STATUS_OPTIONS = [
 // Replace the rider's vehicle in one step — the tenancy (allotment ID, rent
 // cycle, paid-through, credit) carries over untouched; no re-allotment, no
 // onboarding fee. Payment, if any, is collected via the normal rent flow after.
+// Entered from a rider's page with params, or from the + sheet with none — in
+// which case the rider is picked first (same as Collect rent).
 export default function ReplaceVehicleScreen() {
+  const params = useLocalSearchParams<{ riderId?: string; riderName?: string; currentEv?: string; dailyRate?: string }>();
+  const [picked, setPicked] = useState<PickedRider | null>(null);
+
+  const riderId = params.riderId ?? picked?.id;
+  if (!riderId) {
+    return (
+      <>
+        <Stack.Screen options={{ title: 'Replace vehicle' }} />
+        <RiderPicker title="Whose vehicle is being replaced?" onPick={setPicked} />
+      </>
+    );
+  }
+  return (
+    <ReplaceVehicleBody
+      riderId={riderId}
+      riderName={params.riderName ?? picked?.name}
+      currentEv={params.currentEv ?? picked?.evNumber ?? undefined}
+      dailyRate={params.dailyRate}
+    />
+  );
+}
+
+function ReplaceVehicleBody({
+  riderId,
+  riderName,
+  currentEv,
+  dailyRate,
+}: {
+  riderId: string;
+  riderName?: string;
+  currentEv?: string;
+  dailyRate?: string;
+}) {
   const { token } = useAuth();
   const { t } = useTheme();
   const router = useRouter();
   const toast = useToast();
-  const params = useLocalSearchParams<{ riderId: string; riderName?: string; currentEv?: string; dailyRate?: string }>();
+  const params = { riderId, riderName, currentEv, dailyRate };
 
   const fetcher = useCallback((t: string) => getVehicles(t, { status: 'ready_to_deploy' }), []);
   const { data: vehicles } = useApiQuery<Vehicle[]>(fetcher, [], { cacheKey: 'vehicles:ready' });

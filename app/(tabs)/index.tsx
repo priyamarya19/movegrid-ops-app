@@ -9,7 +9,6 @@ import { ErrorState, LoadingState } from '@/components/ui/QueryStates';
 import { radius, space, type } from '@/constants/theme';
 import {
   getCollectionsChase,
-  getCollectionsPayments,
   getPaymentClaims,
   getRentSummary,
   getVehicles,
@@ -31,16 +30,18 @@ type HomeData = {
 };
 
 async function loadHome(token: string): Promise<HomeData> {
-  const [summary, today, claims, chase, vehicles] = await Promise.all([
+  // Everything here rides on role-gated endpoints, so a real failure surfaces as
+  // an error state instead of being silently rendered as zero. Claims is the one
+  // exception — it is a queue count, and an empty count is not misleading.
+  const [summary, claims, chase, vehicles] = await Promise.all([
     getRentSummary(token),
-    getCollectionsPayments(token, 'today').catch(() => ({ payments: [], total: 0 })),
     getPaymentClaims(token).catch(() => ({ claims: [] })),
-    getCollectionsChase(token).catch(() => ({ summary: { expectedToDate: 0, collected: 0, overdue: 0, overdueRiders: 0, pct: 0 }, chase: [] })),
+    getCollectionsChase(token),
     getVehicles(token),
   ]);
   return {
     summary,
-    collectedToday: Number(today.total) || 0,
+    collectedToday: Number(summary.collectedToday) || 0,
     claimsPending: claims.claims.length,
     chase: chase.chase,
     fleet: {

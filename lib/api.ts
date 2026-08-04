@@ -623,6 +623,8 @@ export type RentSummary = {
   pendingThisWeek: number;
   /** Count of riders whose current ongoing week is unpaid and who are at most one week behind. */
   pendingThisWeekRiders: number;
+  /** Cash/UPI received today (IST) — role-gated like the rest of this summary. */
+  collectedToday: number;
   pct: number;
 };
 

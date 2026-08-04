@@ -21,8 +21,8 @@ const ALL_OPS = ['admin', 'ops_manager', 'hub_incharge'];
 const ACTIONS: Action[] = [
   { icon: 'plus-circle', label: 'New allotment', sub: 'Hand over a scooter', href: '/allotment/new', roles: ALL_OPS },
   { icon: 'undo', label: 'Return vehicle', sub: 'Voluntary handback', href: '/allotment/return', roles: ALL_OPS },
-  { icon: 'refresh', label: 'Replace vehicle', sub: 'Swap a faulty scooter', href: '/(tabs)/riders' as Href, roles: ALL_OPS },
-  { icon: 'exclamation-triangle', label: 'Recover vehicle', sub: 'Take back from a defaulter', href: '/(tabs)/riders' as Href, roles: ALL_OPS },
+  { icon: 'refresh', label: 'Replace vehicle', sub: 'Swap a faulty scooter', href: '/rider/replace-vehicle' as Href, roles: ALL_OPS },
+  { icon: 'exclamation-triangle', label: 'Recover vehicle', sub: 'Take back from a defaulter', href: '/rider/recover-vehicle' as Href, roles: ALL_OPS },
   { icon: 'user-plus', label: 'Add rider', sub: 'Onboard a new rider', href: '/rider/new', roles: ALL_OPS },
   { icon: 'motorcycle', label: 'Add vehicle', sub: 'Register a scooter', href: '/vehicle/new', roles: ALL_OPS },
 ];

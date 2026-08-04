@@ -18,7 +18,8 @@ export default function MoneyScreen() {
   const { user } = useAuth();
   const { t } = useTheme();
 
-  const hasCollections = (user?.appPages ?? []).includes('collections') || user?.role === 'admin';
+  // Collections is core ops work — visible to every ops role, no page toggle.
+  const hasCollections = ['admin', 'ops_manager', 'hub_incharge'].includes(user?.role ?? '');
   const [segment, setSegment] = useState<Segment>(hasCollections ? 'chase' : 'claims');
 
   // Badge only — the Claims segment itself refetches on focus.

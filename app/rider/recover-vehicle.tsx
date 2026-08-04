@@ -1,5 +1,7 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
+
+import { RiderPicker, type PickedRider } from '@/components/RiderPicker';
 import { Alert, Pressable, Switch, Text, View, StyleSheet } from 'react-native';
 
 import { Button } from '@/components/ui/Button';
@@ -31,11 +33,41 @@ const REASONS = [
 // condition photos, and (default ON) blacklisting the rider. The rider's
 // outstanding freezes as recovery dues.
 export default function RecoverVehicleScreen() {
+  const params = useLocalSearchParams<{ riderId?: string; riderName?: string; currentEv?: string }>();
+  const [picked, setPicked] = useState<PickedRider | null>(null);
+
+  const riderId = params.riderId ?? picked?.id;
+  if (!riderId) {
+    return (
+      <>
+        <Stack.Screen options={{ title: 'Recover vehicle' }} />
+        <RiderPicker title="Whose vehicle is being recovered?" onPick={setPicked} />
+      </>
+    );
+  }
+  return (
+    <RecoverVehicleBody
+      riderId={riderId}
+      riderName={params.riderName ?? picked?.name}
+      currentEv={params.currentEv ?? picked?.evNumber ?? undefined}
+    />
+  );
+}
+
+function RecoverVehicleBody({
+  riderId,
+  riderName,
+  currentEv,
+}: {
+  riderId: string;
+  riderName?: string;
+  currentEv?: string;
+}) {
   const { token } = useAuth();
   const { t } = useTheme();
   const router = useRouter();
   const toast = useToast();
-  const params = useLocalSearchParams<{ riderId: string; riderName?: string; currentEv?: string }>();
+  const params = { riderId, riderName, currentEv };
 
   const [reason, setReason] = useState<string>('non_payment');
   const [location, setLocation] = useState('');
