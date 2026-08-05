@@ -21,6 +21,9 @@ import { formatINR } from '@/lib/format';
 import { useApiQuery } from '@/lib/useApiQuery';
 import { useOutbox } from '@/lib/useOutbox';
 
+// How many riders the home shortlist shows before "View all".
+const COLLECT_NEXT_COUNT = 6;
+
 type HomeData = {
   summary: RentSummary;
   collectedToday: number;
@@ -162,7 +165,7 @@ export default function HomeScreen() {
                   <Text style={[styles.allClearText, { color: t.textMuted }]}>All caught up — no rent overdue.</Text>
                 </View>
               ) : (
-                data.chase.slice(0, 3).map((r, i) => (
+                data.chase.slice(0, COLLECT_NEXT_COUNT).map((r, i) => (
                   <Pressable
                     key={r.rider_id}
                     style={({ pressed }) => [
