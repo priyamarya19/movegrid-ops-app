@@ -1076,3 +1076,37 @@ export function updateUserPages(token: string, userId: string, appPages: string[
     token,
   });
 }
+
+
+// ---- Rider support tickets -------------------------------------------------
+
+export type RiderTicket = {
+  id: string;
+  message: string;
+  media_url: string | null;
+  media_type: 'image' | 'video' | null;
+  status: 'open' | 'resolved';
+  resolution_note: string | null;
+  resolved_by: string | null;
+  created_at: string;
+  resolved_at: string | null;
+  age_hours: number;
+  rider_id: string;
+  rider_name: string;
+  rider_code: string | null;
+  mobile: string;
+  ev_number: string | null;
+};
+
+export function getRiderTickets(token: string) {
+  return apiFetch<{ tickets: RiderTicket[]; open: number }>('/api/rider-tickets', { token });
+}
+
+/** Resolving needs a note — the rider reads it in their app. */
+export function resolveRiderTicket(token: string, id: string, resolutionNote: string) {
+  return apiFetch<{ ok: boolean; status: string }>(`/api/rider-tickets/${id}`, {
+    method: 'PATCH',
+    body: { action: 'resolve', resolution_note: resolutionNote },
+    token,
+  });
+}

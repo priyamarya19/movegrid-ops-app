@@ -266,6 +266,7 @@ function AppStack() {
       <Stack.Screen name="allotment/return" options={{ headerShown: true }} />
       <Stack.Screen name="rent-collect" options={{ headerShown: true }} />
       <Stack.Screen name="fleet" options={{ headerShown: true }} />
+      <Stack.Screen name="rider-tickets" options={{ headerShown: true }} />
       <Stack.Screen name="rent-waivers" options={{ headerShown: true }} />
       <Stack.Screen name="hubs" options={{ headerShown: true }} />
       <Stack.Screen name="leads" options={{ headerShown: true }} />

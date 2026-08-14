@@ -39,6 +39,7 @@ const ROWS: Row[] = [
   { icon: 'motorcycle', label: 'Fleet', href: '/fleet' as Href, roles: ALL_OPS },
   { icon: 'hand-o-right', label: 'Rent waivers', href: '/rent-waivers', roles: ALL_OPS, pageKey: 'rent_waivers' },
   { icon: 'exclamation-triangle', label: 'Recovered vehicles', href: '/recoveries' as Href, roles: ALL_OPS },
+  { icon: 'comments', label: 'Rider support', href: '/rider-tickets' as Href, roles: ALL_OPS, pageKey: 'rider_tickets' },
   { icon: 'building', label: 'Hubs', href: '/hubs', roles: ALL_OPS, pageKey: 'hubs' },
   { icon: 'user-plus', label: 'Leads', href: '/leads', roles: ['admin', 'ops_manager'], pageKey: 'leads' },
   // Dashboard-parity pages.
