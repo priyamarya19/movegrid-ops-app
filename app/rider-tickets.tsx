@@ -14,8 +14,10 @@ import { useTheme } from '@/lib/theme-context';
 import { useApiQuery } from '@/lib/useApiQuery';
 
 // Support requests from riders. Open ones first, longest wait at the top.
-// Replying resolves in one step — the note is what the rider sees in their app,
-// so "resolved" with nothing written is worse than leaving it open.
+// Reply and resolve are two decisions, not one. They used to share a single
+// button, so every answer closed the ticket — a rider who wrote back had to
+// raise a whole new request. The note is mandatory either way: "resolved" with
+// nothing written is worse than leaving it open.
 export default function RiderTicketsScreen() {
   const { t } = useTheme();
   const { token } = useAuth();
@@ -33,7 +35,7 @@ export default function RiderTicketsScreen() {
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const submit = async (ticket: RiderTicket) => {
+  const submit = async (ticket: RiderTicket, action: 'reply' | 'resolve') => {
     if (!token) return;
     if (note.trim().length < 3) {
       toast('Add a note — the rider reads this', 'error');
@@ -41,8 +43,13 @@ export default function RiderTicketsScreen() {
     }
     setSaving(true);
     try {
-      await resolveRiderTicket(token, ticket.id, note.trim());
-      toast(`Replied to ${ticket.rider_name}`, 'success');
+      await resolveRiderTicket(token, ticket.id, note.trim(), action);
+      toast(
+        action === 'resolve'
+          ? `Resolved · ${ticket.rider_name} notified`
+          : `Replied to ${ticket.rider_name} — still open`,
+        'success'
+      );
       setReplyingId(null);
       setNote('');
       refetch();
@@ -164,12 +171,18 @@ export default function RiderTicketsScreen() {
                         />
                         <View style={{ flexDirection: 'row', gap: space(3) }}>
                           <Pressable
-                            onPress={() => submit(x)}
+                            onPress={() => submit(x, 'reply')}
                             disabled={saving}
                             style={[styles.btn, { backgroundColor: t.accent }]}>
                             <Text style={[styles.btnText, { color: t.onAccent }]}>
-                              {saving ? 'Saving…' : 'Reply & resolve'}
+                              {saving ? 'Sending…' : 'Send reply'}
                             </Text>
+                          </Pressable>
+                          <Pressable
+                            onPress={() => submit(x, 'resolve')}
+                            disabled={saving}
+                            style={[styles.btn, { backgroundColor: t.accentSoft }]}>
+                            <Text style={[styles.btnText, { color: t.accentText }]}>Reply &amp; resolve</Text>
                           </Pressable>
                           <Pressable
                             onPress={() => {
@@ -188,7 +201,7 @@ export default function RiderTicketsScreen() {
                           setNote('');
                         }}
                         style={[styles.btn, { backgroundColor: t.accentSoft, alignSelf: 'flex-start' }]}>
-                        <Text style={[styles.btnText, { color: t.accentText }]}>Reply &amp; resolve</Text>
+                        <Text style={[styles.btnText, { color: t.accentText }]}>Reply</Text>
                       </Pressable>
                     )
                   ) : null}

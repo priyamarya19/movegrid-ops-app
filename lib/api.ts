@@ -1103,10 +1103,13 @@ export function getRiderTickets(token: string) {
 }
 
 /** Resolving needs a note — the rider reads it in their app. */
-export function resolveRiderTicket(token: string, id: string, resolutionNote: string) {
+/** 'reply' answers and leaves the ticket open; 'resolve' answers and closes it. */
+export function resolveRiderTicket(
+  token: string, id: string, resolutionNote: string, action: 'reply' | 'resolve' = 'resolve'
+) {
   return apiFetch<{ ok: boolean; status: string }>(`/api/rider-tickets/${id}`, {
     method: 'PATCH',
-    body: { action: 'resolve', resolution_note: resolutionNote },
+    body: { action, resolution_note: resolutionNote },
     token,
   });
 }
