@@ -396,6 +396,8 @@ export type NewAllotment = {
   onboarding_fee?: number | null;
   security_deposit?: number | null;
   amount_collected?: number | null;
+  /** How much of amount_collected is rent. Stated by ops, never inferred. */
+  rent_collected?: number | null;
   payment_screenshot_url?: string | null;
   undertaking_url?: string | null;
   allotment_pics?: string[] | null;

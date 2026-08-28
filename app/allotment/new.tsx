@@ -92,6 +92,9 @@ export default function NewAllotmentScreen() {
   const [onboardingFee, setOnboardingFee] = useState('');
   const [deposit, setDeposit] = useState('');
   const [amount, setAmount] = useState('');
+  // How much of the cash is rent. Stated, never inferred — inferring it is what
+  // fabricated ₹5,180 of payments that were never collected.
+  const [rentCollected, setRentCollected] = useState('');
   const [assignedDate, setAssignedDate] = useState(today());
   const [paymentShot, setPaymentShot] = useState('');
   const [undertaking, setUndertaking] = useState('');
@@ -129,12 +132,13 @@ export default function NewAllotmentScreen() {
       onboardingFee,
       deposit,
       amount,
+      rentCollected,
       assignedDate,
       paymentShot,
       undertaking,
       pics,
     }),
-    [riderId, rider, vehicleId, riderMode, rentalPlan, dailyRent, onboardingFee, deposit, amount, assignedDate, paymentShot, undertaking, pics]
+    [riderId, rider, vehicleId, riderMode, rentalPlan, dailyRent, onboardingFee, deposit, amount, rentCollected, assignedDate, paymentShot, undertaking, pics]
   );
   type AllotmentDraft = typeof draftValue;
 
@@ -149,6 +153,7 @@ export default function NewAllotmentScreen() {
     setOnboardingFee(d.onboardingFee);
     setDeposit(d.deposit);
     setAmount(d.amount);
+    setRentCollected(d.rentCollected ?? '');
     setAssignedDate(d.assignedDate);
     setPaymentShot(d.paymentShot);
     setUndertaking(d.undertaking);
@@ -237,7 +242,14 @@ export default function NewAllotmentScreen() {
   // and any collection needs a payment screenshot as proof (mirrors the
   // mandatory-proof rule on rent-collect / return settlement).
   const amountNum = Number(amount);
-  const amountInvalid = amount.trim().length > 0 && !(amountNum > 0);
+  // ₹0 is a legitimate entry — a vehicle swap where no money changes hands. The
+  // old rule rejected it, so ops typed ₹1 instead and the backend read that as a
+  // paid week. Only a negative or non-numeric amount is wrong now.
+  const amountInvalid = amount.trim().length > 0 && !(amountNum >= 0 && Number.isFinite(amountNum));
+  const rentNum = Number(rentCollected);
+  const rentInvalid =
+    rentCollected.trim().length > 0 &&
+    (!Number.isFinite(rentNum) || rentNum < 0 || (Number.isFinite(amountNum) && rentNum > amountNum));
   const needsProof = amountNum > 0 && !paymentShot;
   // Daily rent is mandatory and must be a real positive number.
   const dailyRentNum = Number(dailyRent);
@@ -251,6 +263,8 @@ export default function NewAllotmentScreen() {
     !dailyRentInvalid &&
     amount.trim().length > 0 &&
     !amountInvalid &&
+    rentCollected.trim().length > 0 &&
+    !rentInvalid &&
     !needsProof &&
     !submitting;
 
@@ -264,6 +278,8 @@ export default function NewAllotmentScreen() {
     !dailyRentInvalid &&
     amount.trim().length > 0 &&
     !amountInvalid &&
+    rentCollected.trim().length > 0 &&
+    !rentInvalid &&
     !needsProof;
 
   const onSubmit = async () => {
@@ -273,7 +289,7 @@ export default function NewAllotmentScreen() {
       return;
     }
     if (amountInvalid) {
-      setError('Amount collected must be a positive number.');
+      setError('Amount collected must be a number — ₹0 is allowed.');
       return;
     }
     if (needsProof) {
@@ -291,6 +307,7 @@ export default function NewAllotmentScreen() {
       onboarding_fee: onboardingFee.trim() ? Number(onboardingFee) : null,
       security_deposit: deposit.trim() ? Number(deposit) : null,
       amount_collected: amount.trim() ? Number(amount) : null,
+      rent_collected: rentCollected.trim() ? Number(rentCollected) : null,
       payment_screenshot_url: paymentShot || null,
       undertaking_url: undertaking || null,
       allotment_pics: pics.filter(Boolean).length ? pics.filter(Boolean) : null,
@@ -458,7 +475,18 @@ export default function NewAllotmentScreen() {
               keyboardType="numeric"
               editable={!submitting}
               tone={amountInvalid ? 'error' : 'default'}
-              hint={amountInvalid ? 'Enter a positive amount' : 'Total of onboarding fee + security deposit'}
+              hint={amountInvalid ? 'Enter a number — ₹0 is fine' : 'Everything taken now: fee, deposit and rent. ₹0 on a no-cash swap.'}
+            />
+            <TextField
+              label="Of which, rent (₹)"
+              required
+              value={rentCollected}
+              onChangeText={setRentCollected}
+              placeholder="0"
+              keyboardType="numeric"
+              editable={!submitting}
+              tone={rentInvalid ? 'error' : 'default'}
+              hint={rentInvalid ? 'Rent cannot be more than the amount collected' : 'How much of it is rent. ₹0 if none.'}
             />
             <ImageField label="Payment screenshot" folder="payments" value={paymentShot} onChange={setPaymentShot} />
             {needsProof ? (
