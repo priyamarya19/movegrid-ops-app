@@ -6,7 +6,10 @@ import { radius, space } from '@/constants/theme';
 import { formatDate, toLocalISODate } from '@/lib/format';
 import { useTheme } from '@/lib/theme-context';
 
-type FieldTone = 'default' | 'success' | 'error';
+// 'warning' is for a value that is probably wrong but might be deliberate —
+// ₹0 of rent is right on a no-cash swap and wrong on every other allotment.
+// Colouring it as an error would be a lie, and leaving it plain lets it through.
+type FieldTone = 'default' | 'success' | 'error' | 'warning';
 
 type TextFieldProps = TextInputProps & {
   label: string;
@@ -18,8 +21,15 @@ type TextFieldProps = TextInputProps & {
 export function TextField({ label, required, hint, tone = 'default', style, ...inputProps }: TextFieldProps) {
   const { t } = useTheme();
   const borderColor =
-    tone === 'success' ? t.accent : tone === 'error' ? t.danger : t.border;
-  const hintColor = tone === 'error' ? t.dangerText : tone === 'success' ? t.accentText : t.textFaint;
+    tone === 'success' ? t.accent
+    : tone === 'error' ? t.danger
+    : tone === 'warning' ? t.warning
+    : t.border;
+  const hintColor =
+    tone === 'error' ? t.dangerText
+    : tone === 'success' ? t.accentText
+    : tone === 'warning' ? t.warningText
+    : t.textFaint;
   return (
     <View style={styles.field}>
       <Text style={[styles.label, { color: t.textMuted }]}>

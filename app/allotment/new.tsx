@@ -95,6 +95,10 @@ export default function NewAllotmentScreen() {
   // How much of the cash is rent. Stated, never inferred — inferring it is what
   // fabricated ₹5,180 of payments that were never collected.
   const [rentCollected, setRentCollected] = useState('');
+  // Tracks whether ops typed the rent themselves. Until they do, it follows the
+  // fee/deposit subtraction — leaving it blank and mandatory got ₹0 entered on
+  // a rider who had paid a full week, and he showed as overdue next morning.
+  const [rentTouched, setRentTouched] = useState(false);
   const [assignedDate, setAssignedDate] = useState(today());
   const [paymentShot, setPaymentShot] = useState('');
   const [undertaking, setUndertaking] = useState('');
@@ -154,6 +158,7 @@ export default function NewAllotmentScreen() {
     setDeposit(d.deposit);
     setAmount(d.amount);
     setRentCollected(d.rentCollected ?? '');
+    if ((d.rentCollected ?? '').trim()) setRentTouched(true);
     setAssignedDate(d.assignedDate);
     setPaymentShot(d.paymentShot);
     setUndertaking(d.undertaking);
@@ -246,6 +251,16 @@ export default function NewAllotmentScreen() {
   // old rule rejected it, so ops typed ₹1 instead and the backend read that as a
   // paid week. Only a negative or non-numeric amount is wrong now.
   const amountInvalid = amount.trim().length > 0 && !(amountNum >= 0 && Number.isFinite(amountNum));
+  // What's left of the cash once the fee and deposit come out — the rent, in
+  // the ordinary case. Suggested, never forced: ops have the last word.
+  const suggestedRent = Math.max(
+    0,
+    (Number(amount) || 0) - (Number(onboardingFee) || 0) - (Number(deposit) || 0)
+  );
+  useEffect(() => {
+    if (!rentTouched) setRentCollected(suggestedRent ? String(suggestedRent) : '');
+  }, [suggestedRent, rentTouched]);
+
   const rentNum = Number(rentCollected);
   const rentInvalid =
     rentCollected.trim().length > 0 &&
@@ -481,12 +496,20 @@ export default function NewAllotmentScreen() {
               label="Of which, rent (₹)"
               required
               value={rentCollected}
-              onChangeText={setRentCollected}
+              onChangeText={(v) => { setRentTouched(true); setRentCollected(v); }}
               placeholder="0"
               keyboardType="numeric"
               editable={!submitting}
-              tone={rentInvalid ? 'error' : 'default'}
-              hint={rentInvalid ? 'Rent cannot be more than the amount collected' : 'How much of it is rent. ₹0 if none.'}
+              tone={rentInvalid ? 'error' : rentNum === 0 && amountNum > 0 ? 'warning' : 'default'}
+              hint={
+                rentInvalid
+                  ? 'Rent cannot be more than the amount collected'
+                  : rentNum === 0 && amountNum > 0
+                    ? '₹0 means no days bought — the rider shows as due tomorrow. Right for a swap, otherwise enter the rent.'
+                    : dailyRentNum > 0 && rentNum > 0
+                      ? `Fee and deposit taken out. Buys ${Math.floor(rentNum / dailyRentNum)} day(s).`
+                      : 'Fee and deposit taken out. Edit if the split is different.'
+              }
             />
             <ImageField label="Payment screenshot" folder="payments" value={paymentShot} onChange={setPaymentShot} />
             {needsProof ? (
