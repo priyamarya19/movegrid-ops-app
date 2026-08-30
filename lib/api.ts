@@ -1082,32 +1082,54 @@ export function updateUserPages(token: string, userId: string, appPages: string[
 
 // ---- Rider support tickets -------------------------------------------------
 
+export type RiderTicketMessage = {
+  id: string;
+  author: 'rider' | 'ops' | 'system';
+  author_name: string | null;
+  body: string | null;
+  media_url: string | null;
+  media_type: 'image' | 'video' | null;
+  kind: 'message' | 'close_request' | 'close_approved' | 'close_declined' | 'auto_closed';
+  created_at: string;
+};
+
 export type RiderTicket = {
   id: string;
   message: string;
   media_url: string | null;
   media_type: 'image' | 'video' | null;
-  status: 'open' | 'resolved';
+  // 'pending_closure': we have asked the rider whether it is sorted and are
+  // waiting on their answer. Still ours to chase, not done.
+  status: 'open' | 'pending_closure' | 'resolved';
   resolution_note: string | null;
   resolved_by: string | null;
   created_at: string;
   resolved_at: string | null;
+  close_requested_at: string | null;
+  close_requested_by: string | null;
   age_hours: number;
   rider_id: string;
   rider_name: string;
   rider_code: string | null;
   mobile: string;
   ev_number: string | null;
+  messages: RiderTicketMessage[];
 };
 
 export function getRiderTickets(token: string) {
   return apiFetch<{ tickets: RiderTicket[]; open: number }>('/api/rider-tickets', { token });
 }
 
-/** Resolving needs a note — the rider reads it in their app. */
-/** 'reply' answers and leaves the ticket open; 'resolve' answers and closes it. */
+/**
+ * Every move needs a note — the rider reads it in their app.
+ *
+ *   reply          answer, leave it open
+ *   request_close  ask the rider if it is sorted; they decide
+ *   resolve        close it without asking (duplicates, riders who have gone)
+ */
 export function resolveRiderTicket(
-  token: string, id: string, resolutionNote: string, action: 'reply' | 'resolve' = 'resolve'
+  token: string, id: string, resolutionNote: string,
+  action: 'reply' | 'resolve' | 'request_close' = 'resolve'
 ) {
   return apiFetch<{ ok: boolean; status: string }>(`/api/rider-tickets/${id}`, {
     method: 'PATCH',

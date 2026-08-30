@@ -35,7 +35,7 @@ export default function RiderTicketsScreen() {
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const submit = async (ticket: RiderTicket, action: 'reply' | 'resolve') => {
+  const submit = async (ticket: RiderTicket, action: 'reply' | 'resolve' | 'request_close') => {
     if (!token) return;
     if (note.trim().length < 3) {
       toast('Add a note — the rider reads this', 'error');
@@ -46,8 +46,10 @@ export default function RiderTicketsScreen() {
       await resolveRiderTicket(token, ticket.id, note.trim(), action);
       toast(
         action === 'resolve'
-          ? `Resolved · ${ticket.rider_name} notified`
-          : `Replied to ${ticket.rider_name} — still open`,
+          ? `Closed · ${ticket.rider_name} notified`
+          : action === 'request_close'
+            ? `Asked ${ticket.rider_name} — closes when they say yes`
+            : `Replied to ${ticket.rider_name} — still open`,
         'success'
       );
       setReplyingId(null);
@@ -75,7 +77,7 @@ export default function RiderTicketsScreen() {
           contentContainerStyle={styles.content}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refetch} tintColor={t.accent} />}>
           <Text style={[styles.summary, { color: t.textMuted }]}>
-            {data?.open ?? 0} open · resolved requests from the last 7 days shown below
+            {data?.open ?? 0} needing attention · closed requests from the last 7 days shown below
           </Text>
 
           {(data?.tickets ?? []).length === 0 ? (
@@ -83,12 +85,16 @@ export default function RiderTicketsScreen() {
           ) : (
             (data?.tickets ?? []).map((x) => {
               const isOpen = x.status === 'open';
+              // Waiting on the rider's yes/no is not off our plate either — it
+              // just isn't ours to act on until they answer.
+              const waiting = x.status === 'pending_closure';
+              const live = x.status !== 'resolved';
               return (
                 <View
                   key={x.id}
                   style={[
                     styles.card,
-                    { backgroundColor: t.surface, borderColor: isOpen ? t.warning : t.border },
+                    { backgroundColor: t.surface, borderColor: isOpen ? t.warning : waiting ? t.accent : t.border },
                   ]}>
                   <View style={styles.head}>
                     <Pressable
@@ -122,7 +128,13 @@ export default function RiderTicketsScreen() {
                               : t.accentText,
                           },
                         ]}>
-                        {isOpen ? (x.age_hours < 1 ? 'just now' : `${x.age_hours}h waiting`) : 'Resolved'}
+                        {isOpen
+                          ? x.age_hours < 1
+                            ? 'just now'
+                            : `${x.age_hours}h waiting`
+                          : waiting
+                            ? 'Waiting on rider'
+                            : 'Resolved'}
                       </Text>
                     </View>
                   </View>
@@ -145,16 +157,39 @@ export default function RiderTicketsScreen() {
                     )
                   ) : null}
 
-                  {x.resolution_note ? (
-                    <View style={[styles.reply, { backgroundColor: t.surfaceAlt }]}>
-                      <Text style={[styles.replyLabel, { color: t.textMuted }]}>
-                        REPLY{x.resolved_by ? ` · ${x.resolved_by}` : ''}
+                  {/* The rest of the conversation. The rider's opening message
+                      is already shown above, so it is skipped here. */}
+                  {(x.messages ?? []).slice(1).map((m) =>
+                    m.kind !== 'message' ? (
+                      <Text key={m.id} style={[styles.event, { color: t.textFaint }]}>
+                        {m.kind === 'close_request'
+                          ? `${m.author_name ?? 'Ops'} asked to close this`
+                          : m.kind === 'close_approved'
+                            ? 'Rider confirmed it is sorted'
+                            : m.kind === 'close_declined'
+                              ? 'Rider said it is not sorted yet'
+                              : 'Closed automatically — no reply'}
+                        {m.body ? ` — “${m.body}”` : ''}
                       </Text>
-                      <Text style={[styles.replyText, { color: t.text }]}>{x.resolution_note}</Text>
-                    </View>
-                  ) : null}
+                    ) : (
+                      <View
+                        key={m.id}
+                        style={[
+                          styles.reply,
+                          {
+                            backgroundColor: m.author === 'ops' ? t.accentSoft : t.surfaceAlt,
+                            alignSelf: m.author === 'ops' ? 'flex-end' : 'flex-start',
+                          },
+                        ]}>
+                        <Text style={[styles.replyLabel, { color: t.textMuted }]}>
+                          {m.author === 'ops' ? (m.author_name ?? 'Ops') : x.rider_name}
+                        </Text>
+                        <Text style={[styles.replyText, { color: t.text }]}>{m.body}</Text>
+                      </View>
+                    )
+                  )}
 
-                  {isOpen ? (
+                  {live ? (
                     replyingId === x.id ? (
                       <View style={{ gap: space(2) }}>
                         <TextInput
@@ -169,7 +204,7 @@ export default function RiderTicketsScreen() {
                             { backgroundColor: t.bg, borderColor: t.border, color: t.text },
                           ]}
                         />
-                        <View style={{ flexDirection: 'row', gap: space(3) }}>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space(2) }}>
                           <Pressable
                             onPress={() => submit(x, 'reply')}
                             disabled={saving}
@@ -178,11 +213,19 @@ export default function RiderTicketsScreen() {
                               {saving ? 'Sending…' : 'Send reply'}
                             </Text>
                           </Pressable>
+                          {/* Closing is the rider's word. "Close now" stays for
+                              duplicates and riders who have gone for good. */}
+                          <Pressable
+                            onPress={() => submit(x, 'request_close')}
+                            disabled={saving}
+                            style={[styles.btn, { backgroundColor: t.accentSoft }]}>
+                            <Text style={[styles.btnText, { color: t.accentText }]}>Ask to close</Text>
+                          </Pressable>
                           <Pressable
                             onPress={() => submit(x, 'resolve')}
                             disabled={saving}
-                            style={[styles.btn, { backgroundColor: t.accentSoft }]}>
-                            <Text style={[styles.btnText, { color: t.accentText }]}>Reply &amp; resolve</Text>
+                            style={[styles.btn, { borderWidth: 1, borderColor: t.border }]}>
+                            <Text style={[styles.btnText, { color: t.textMuted }]}>Close now</Text>
                           </Pressable>
                           <Pressable
                             onPress={() => {
@@ -237,7 +280,8 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   videoLinkText: { fontSize: 13, fontWeight: '700' },
-  reply: { borderRadius: radius.md, padding: space(3), gap: 2 },
+  reply: { borderRadius: radius.md, padding: space(3), gap: 2, maxWidth: '88%' },
+  event: { fontSize: 11, textAlign: 'center', paddingVertical: space(1) },
   replyLabel: { fontSize: 10.5, fontWeight: '700', letterSpacing: 0.5 },
   replyText: { fontSize: 14, lineHeight: 20 },
   input: { borderWidth: 1, borderRadius: radius.md, padding: space(3), minHeight: 72, textAlignVertical: 'top', fontSize: 14 },
